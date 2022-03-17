@@ -1,0 +1,30 @@
+{
+    // Simple docker run configuration
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Stop services",
+            "type": "shell",
+            "command": "docker-compose down --timeout 1"
+        },
+        {
+            "label": "Start services",
+            "type": "shell",
+            "command": "docker-compose up --build"
+        },
+        {
+            "label": "Restart services",
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "panel": "shared",
+                "clear": true,
+            },
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Stop services",
+                "Start services"
+            ]
+        }
+    ]
+}

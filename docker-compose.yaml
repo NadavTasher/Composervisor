@@ -1,0 +1,18 @@
+# Select compose version
+version: "3"
+# Define services
+services: 
+    # Create template service
+    application:
+        # Select service image
+        build: application
+        # Expose ports
+        ports: 
+            - 8000:80
+        # Mount volumes
+        volumes:
+            # Persistent data volume
+            - data:/opt
+
+volumes:
+    data:
