@@ -3,9 +3,38 @@ import fs from "fs";
 import process from "process";
 
 // Import utilities
-import { read, write, render } from "./utilities.mjs";
-import { File, Charset, Authority, execute, join, render } from "../internal/utilities.mjs";
-import { PATH, CREATE_PATH_COMMAND, REPOSITORY, CREATE_DEPLOYMENT_COMMAND, UPDATE_DEPLOYMENT_COMMAND } from "./constants.mjs";
+import { 
+	OUTPUT
+} from "../internal/utilities/file.mjs";
+import { 
+	File,
+	Authority,
+	execute,
+	join,
+	render,
+	random
+} from "../internal/utilities.mjs";
+import { 
+	PRIVATE,
+	PUBLIC,
+	CREATE_KEY_COMMAND,
+	REPOSITORY,
+	CREATE_PATH_COMMAND,
+	DELETE_PATH_COMMAND,
+	GIT_COMMAND,
+	COMPOSE_TAIL,
+	COMPOSE_TIMEOUT,
+	COMPOSE_COMMAND,
+	START_DEPLOYMENT_COMMAND,
+	STOP_DEPLOYMENT_COMMAND,
+	STATUS_DEPLOYMENT_COMMAND,
+	DESTROY_DEPLOYMENT_COMMAND,
+	RESET_DEPLOYMENT_COMMAND,
+	RESTART_DEPLOYMENT_COMMAND,
+	DELETE_DEPLOYMENT_COMMAND,
+	UPDATE_DEPLOYMENT_COMMAND,
+	CREATE_DEPLOYMENT_COMMAND
+} from "./constants.mjs";
 
 // Create database files
 const Property = new File("property.json");
@@ -17,7 +46,7 @@ const properties = Property.read({});
 // Make sure properties contain the token secret
 if (!properties.secret) {
 	// Generate the token secret
-	properties.secret = Charset.random(16);
+	properties.secret = random(16);
 
 	// Save the modified properties
 	Property.write(properties);
@@ -36,13 +65,52 @@ export function write(path, data) {
 	return fs.writeFileSync(path, data);
 };
 
-// Export password validation function
+// Export function to validate password
 export async function validate(password) {
 	// Sleep for a second
 	await new Promise(resolve => setTimeout(resolve, 1000));
 
 	// Validate the password
 	return (password === process.env.PASSWORD);
+};
+
+// Export function to fetch a deployment
+export function deployment(token, action, exists = true) {
+	// Validate token
+	const id = Token.validate(token, [ action ]).contents().id;
+
+	// Read the database
+	const database = Database.read({});
+
+	// Make sure the ID exists
+	if (!database[id])
+		throw new Error("Deployment does not exist");
+
+	// Read the deployment
+	const entry = database[id];
+
+	// Make sure the deployment has all required properties
+	if (!entry.repository)
+		throw new Error("Deployment does not have a repository");
+	if (!entry.directory)
+		throw new Error("Deployment does not have a directory");
+
+	// Make sure the repository directory exists
+	const repository = fs.existsSync(join(OUTPUT, id, REPOSITORY));
+	
+	// Make sure the repository directory exists (or not)
+	if (exists && !repository)
+		throw new Error("Deployment repository is not initialized");
+	if (!exists && repository)
+		throw new Error("Deployment repository is already initialized");
+
+	// Return the deployment
+	return {
+		id: id,
+		path: join(OUTPUT, id),
+		directory: entry.directory,
+		repository: entry.repository,
+	};
 };
 
 // Export all permissions
@@ -60,11 +128,8 @@ export default {
 	composer: {
 		list: {
 			handler: async () => {
-				// Read the database
-				const database = Database.read({});
-
 				// Return the database
-				return database;
+				return Database.read({});
 			},
 			parameters: {
 				password: validate,
@@ -109,7 +174,7 @@ export default {
 				const deployment = database[parameters.id];
 
 				// Set the public key in the deployment object
-				deployment.key = read(join(PATH, parameters.id, PUBLIC));
+				deployment.key = read(join(OUTPUT, parameters.id, PUBLIC));
 
 				// Create temporary action token
 				deployment.token = Token.issue(`Temporary access token for ${parameters.id}`, { id: parameters.id }, PERMISSIONS, new Date().getTime() + 60 * 10 * 1000);
@@ -130,17 +195,17 @@ export default {
 				const database = Database.read({});
 
 				// Generate a new ID
-				const id = Charset.random(8);
+				const id = random(8);
 
 				// Create deployment folder
 				await execute(render(CREATE_PATH_COMMAND, {
-					path: join(PATH, id)
+					path: join(OUTPUT, id)
 				}));
 
 				// Generate a new ssh key pair
 				await execute(render(CREATE_KEY_COMMAND, {
 					id: id,
-					path: join(PATH, id)
+					path: join(OUTPUT, id)
 				}));
 
 				// Create database entry
@@ -211,10 +276,12 @@ export default {
 				if (!database[parameters.id])
 					throw new Error(`Deployment does not exist`);
 
+				// TODO: delete deployment that has not been cloned
+
 				// Destroy the deployment
 				const output = await execute(render(DESTROY_DEPLOYMENT_COMMAND, {
 					id: parameters.id,
-					path: join(PATH, parameters.id),
+					path: join(OUTPUT, parameters.id),
 				}));
 
 				// Delete deployment from database
@@ -237,25 +304,8 @@ export default {
 	action: {
 		pull: {
 			handler: async (parameters) => {
-				// Validate the token
-				const id = Token.validate(parameters.token, ["pull"]).contents().id;
-
-				// Read the database
-				const database = Database.read({});
-
-				// Make sure the ID exists
-				if (!database[id])
-					throw new Error(`Deployment does not exist`);
-
-				// Make sure the repository directory exists
-				if (!fs.existsSync(join(PATH, id, REPOSITORY)))
-					throw new Error("Deployment was not cloned");
-
 				// Pull the repository
-				return await execute(render(UPDATE_DEPLOYMENT_COMMAND, {
-					id: id,
-					path: join(PATH, id)
-				}));
+				return await execute(render(UPDATE_DEPLOYMENT_COMMAND, deployment(parameters.token, "pull")));
 			},
 			parameters: {
 				token: "string"
@@ -263,33 +313,8 @@ export default {
 		},
 		clone: {
 			handler: async (parameters) => {
-				// Validate token
-				const id = Token.validate(parameters.token, ["clone"]).contents().id;
-
-				// Read the database
-				const database = Database.read({});
-
-				// Make sure the ID exists
-				if (!database[id])
-					throw new Error("Deployment does not exist");
-
-				// Read the deployment
-				const deployment = database[id];
-
-				// Make sure the repository directory does not exist
-				if (fs.existsSync(join(PATH, id, REPOSITORY)))
-					throw new Error("Deployment was already cloned");
-
-				if (!deployment.repository)
-					throw new Error("Deployment has no repository");
-
 				// Clone the repository
-				return await execute(render(CREATE_DEPLOYMENT_COMMAND, {
-					id: id,
-					path: join(PATH, id),
-					directory: deployment.directory,
-					repository: deployment.repository
-				}));
+				return await execute(render(CREATE_DEPLOYMENT_COMMAND, deployment(parameters.token, "clone", false)));
 			},
 			parameters: {
 				token: "string"
@@ -297,97 +322,38 @@ export default {
 		},
 		start: {
 			handler: async (parameters) => {
-				// Validate token
-				const id = Token.validate(parameters.token, ["start"]).contents().id;
-
-				// Read the database
-				const database = Database.read({});
-
-				// Make sure the ID exists
-				if (!database[id])
-					throw new Error("Deployment does not exist");
-
-				// Read the deployment
-				const deployment = database[id];
-
-				// Make sure the repository directory exists
-				if (!fs.existsSync(join(PATH, id, REPOSITORY)))
-					throw new Error("Deployment was not cloned");
-
 				// Start the deployment
-				return await execute(render(START_DEPLOYMENT_COMMAND, {
-					id: id,
-					path: join(PATH, id),
-					directory: deployment.directory
-				}));
+				return await execute(render(START_DEPLOYMENT_COMMAND, deployment(parameters.token, "start")));
 			},
 			parameters: {
-				token: "string",
+				token: "string"
 			}
 		},
 		stop: {
 			handler: async (parameters) => {
-				// Validate token
-				const id = Token.validate(parameters.token, ["stop"]).contents().id;
-
-				// Read the database
-				const database = Database.read({});
-
-				// Make sure the ID exists
-				if (!database[id])
-					throw new Error("Deployment does not exist");
-
-				// Read the deployment
-				const deployment = database[id];
-
-				// Make sure the repository directory exists
-				if (!fs.existsSync(join(PATH, id, REPOSITORY)))
-					throw new Error("Deployment was not cloned");
-
 				// Stop the deployment
-				return await execute(render(STOP_DEPLOYMENT_COMMAND, {
-					id: id,
-					path: join(PATH, id),
-					directory: deployment.directory,
-				}));
+				return await execute(render(STOP_DEPLOYMENT_COMMAND, deployment(parameters.token, "stop")));
 			},
 			parameters: {
-				token: "string",
+				token: "string"
 			}
 		},
 		reset: {
 			handler: async (parameters) => {
-				// Validate token
-				const id = Token.validate(parameters.token, ["reset"]).contents().id;
-
-				// Read the database
-				const database = Database.read({});
-
-				// Make sure the ID exists
-				if (!database[id])
-					throw new Error("Deployment does not exist");
-
-				// Make sure the repository directory exists
-				if (!fs.existsSync(join(PATH, id, REPOSITORY)))
-					throw new Error("Deployment was not cloned");
-
 				// Reset the deployment
-				return await execute(render(RESET_DEPLOYMENT_COMMAND, {
-					id: id,
-					path: join(PATH, id),
-				}));
+				return await execute(render(RESET_DEPLOYMENT_COMMAND, deployment(parameters.token, "reset")));
 			},
 			parameters: {
-				token: "string",
+				token: "string"
 			}
 		},
 		status: {
 			handler: async (parameters) => {
-				// Validate token
-				const id = Token.validate(parameters.token, ["status"]).contents().id;
+				// Fetch deployment status
+				return await execute(render(STATUS_DEPLOYMENT_COMMAND, deployment(parameters.token, "status")));
 			},
 			parameters: {
-				token: "string",
+				token: "string"
 			}
 		}
 	}

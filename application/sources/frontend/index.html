@@ -53,8 +53,21 @@
             max-width: 500px;
         }
 
-        #dashboard-list, #deployment-log {
-            min-height: 80vh;
+        textarea {
+            min-height: 30vh !important;
+        }
+
+        * {
+            font-family: monospace !important;
+        }
+
+        #dashboard-list {
+            min-height: 70vh;
+            justify-content: flex-start;
+        }
+
+        #edit-delete, #view-reset {
+            background-color: #ee8888;
         }
     </style>
 
@@ -72,7 +85,7 @@
                 // Check password
                 try {
                     // Make a simple API call
-                    await API.call("composer", "list", { password });
+                    await API.call("composer", "list", {password});
 
                     // Save password
                     localStorage.password = password;
@@ -86,20 +99,22 @@
             }
 
             // Add action listeners to the buttons
-            UI.find("dashboard-new").addEventListener("click", async () => {
+            UI.find("dashboard-new").onclick = async () => {
                 // Show progress screen
                 const close = Progress.screen("Creating new deployment...");
 
                 // Create new deployment and display editing page
-                const id = await API.call("composer", "create", { password: localStorage.password });
+                const id = await API.call("composer", "create", {password: localStorage.password});
 
                 // Close progress screen
                 close();
 
                 // Redirect to editing page
                 await loadEditor(id);
-            });
+            };
 
+            // Load the dashboard
+            await loadDashboard();
         });
 
         async function loadDashboard() {
@@ -107,13 +122,13 @@
             const close = Progress.screen("Loading dashboard...");
 
             // Get list of deployments
-            const deployments = await API.call("composer", "list", { password: localStorage.password });
+            const deployments = await API.call("composer", "list", {password: localStorage.password});
 
             // Clear list of deployments
             UI.clear("dashboard-list");
 
             // Add deployments to the list
-            for (const deployment of deployments) {
+            for (const [id, deployment] of Object.entries(deployments)) {
                 // Create deployment element from template
                 const element = UI.populate("dashboard-deployment", {
                     name: deployment.name,
@@ -122,14 +137,31 @@
                 // Find status element
                 const status = element.find("status");
 
-                // Send request to view the status of the deployment
-                API.call("actions", "status", { token: deployment.token }).then(
-                    (log) => {
-                        // Split log into lines
-                        const lines = log.trim().split("\n");
+                // Fetch infomration about deployment
+                (
+                    async () => {
+                        // Create line list
+                        let output;
 
-                        // Set the color
-                        status.style.color = "green";
+                        try {
+                            // Fetch token for deployment
+                            const result = await API.call("composer", "fetch", {id: id, password: localStorage.password});
+
+                            // Send request to view the status of the deployment
+                            output = await API.call("action", "status", {token: result.token});
+
+                            // Set the color
+                            status.style.color = "green";
+                        } catch (error) {
+                            // Split error into lines
+                            output = error.toString();
+
+                            // Set the color
+                            status.style.color = "red";
+                        }
+
+                        // Split output to lines
+                        const lines = output.trim().split("\n")
 
                         // Set the contents
                         UI.write(status, lines[lines.length - 1]);
@@ -137,41 +169,35 @@
                         // Set the inner view
                         UI.view(status);
                     }
-                ).catch(
-                    (error) => {
-                        // Set the color
-                        status.style.color = "red";
-
-                        // Set the contents
-                        UI.write(status, error);
-
-                        // Set the inner view
-                        UI.view(status);
-                    }
-                );
+                )();
 
                 // Add event listeners to the buttons
                 element.find("view").addEventListener("click", async () => {
                     // Redirect to deployment page
-                    await loadViewer(deployment.id);
+                    await loadViewer(id);
                 });
                 element.find("edit").addEventListener("click", async () => {
                     // Redirect to editing page
-                    await loadEditor(deployment.id);
+                    await loadEditor(id);
                 });
 
                 // Add item to the list
-                UI.find("dashboard-list").appendChild(item);
+                UI.find("dashboard-list").appendChild(element);
             }
+
+            // Write the summary
+            UI.write("dashboard-summary", `There are ${Object.keys(deployments).length} managed deployments`);
+
+            // Change the view
+            UI.view("dashboard");
+
+            // Close progress screen
+            close();
         }
 
         async function loadViewer(id) {
-
-        }
-
-        async function loadEditor(id) {
             // Show progress screen
-            const close = Progress.screen("Loading the editor...");
+            const close = Progress.screen("Loading viewer...");
 
             // Fetch deployment details
             const deployment = await API.call("composer", "fetch", {
@@ -180,73 +206,195 @@
             });
 
             // Add data to the editor
-            UI.write("editor-key", deployment.key || "Missing SSH Key");
-            UI.write("editor-name", deployment.name || `Unnamed deployment - ${id}`);
-            UI.write("editor-directory", deployment.directory || "/");
-            UI.write("editor-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
+            UI.write("view-name", deployment.name);
 
-            // Clear event listeners for buttons
-            UI.find("editor-save").removeEventListener("click");
-            UI.find("editor-delete").removeEventListener("click");
-            UI.find("editor-token").removeEventListener("click");
+            // Fetch the status of the deployment
+            try {
+                const status = await API.call("action", "status", { token: deployment.token });
+
+                // Update the log
+                UI.write("view-log", status);
+
+                // Set the status message
+                UI.write("view-status", "Deployment is running");
+            } catch (error) {
+                // Set the status message
+                UI.write("view-status", "Deployment is not running");
+            }
 
             // Add event listeners to the buttons
-            UI.find("editor-save").addEventListener("click", async () => {
-                // Show progress screen
-                const close = Progress.screen("Saving changes...");
+            UI.find("view-start").onclick = async () => {
+                try {
+                    // Start deployment
+                    await Progress.drawer("Starting deployment...",
+                        API.call("action", "start", {
+                            token: deployment.token,
+                        })
+                    );
 
-                // Save changes
-                await API.call("composer", "save", {
-                    id: id,
-                    name: UI.read("editor-name"),
-                    directory: UI.read("editor-dirctory"),
-                    repository: UI.read("editor-repository"),
-                    password: localStorage.password
-                });
+                    // Reload the viewer
+                    await loadViewer(id);
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
+            };
+            UI.find("view-stop").onclick = async () => {
+                try {
+                    // Stop deployment
+                    await Progress.drawer("Stopping deployment...",
+                        API.call("action", "stop", {
+                            token: deployment.token,
+                        })
+                    );
 
-                // Close progress screen
-                close();
+                    // Reload the viewer
+                    await loadViewer(id);
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
+            };
+            UI.find("view-update").onclick = async () => {
+                try {
+                    // Stop deployment
+                    await Progress.drawer("Updating deployment...",
+                        API.call("action", "pull", {
+                            token: deployment.token,
+                        })
+                    );
+
+                    // Reload the viewer
+                    await loadViewer(id);
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
+            };
+            UI.find("view-reset").onclick = async () => {
+                try {
+                    // Prompt the user to confirm
+                    if ((await Prompt.dialog("Are you sure you want to reset the deployment?", "Enter 'yes' if you want to reset")).toLowerCase() !== "yes")
+                        throw new Error("User cancelled resetting the deployment");
+
+                    // Stop deployment
+                    await Progress.drawer("Resetting deployment...",
+                        API.call("action", "reset", {
+                            token: deployment.token,
+                        })
+                    );
+
+                    // Reload the viewer
+                    await loadViewer(id);
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
+            };
+
+            // Change the view
+            UI.view("view");
+
+            // Close progress screen
+            close();
+        }
+
+        async function loadEditor(id) {
+            // Show progress screen
+            const close = Progress.screen("Loading editor...");
+
+            // Fetch deployment details
+            const deployment = await API.call("composer", "fetch", {
+                id: id,
+                password: localStorage.password
             });
-            UI.find("editor-delete").addEventListener("click", async () => {
-                // Show progress screen
-                const close = Progress.screen("Deleting deployment...");
 
-                // Delete deployment
-                await API.call("composer", "delete", {
-                    id: id,
-                    password: localStorage.password
-                });
+            // Add data to the editor
+            UI.write("edit-key", deployment.key || "Missing SSH Key");
+            UI.write("edit-name", deployment.name || `Unnamed deployment - ${id}`);
+            UI.write("edit-directory", deployment.directory || "/");
+            UI.write("edit-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
 
-                // Close progress screen
-                close();
+            // Add event listeners to the buttons
+            UI.find("edit-token").onclick = async () => {
+                try {
+                    // Generate token
+                    const token = await Progress.drawer("Generating token...",
+                        API.call("composer", "token", {
+                            id: id,
+                            permissions: [
+                                "pull",
+                                "start",
+                                "stop"
+                            ],
+                            password: localStorage.password
+                        })
+                    );
+
+                    // Show token
+                    await Alert.dialog(`Access token:\n${token}`);
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
+            };
+            UI.find("edit-save").onclick = async () => {
+                try {
+                    // Save changes
+                    await Progress.dialog("Saving changes...",
+                        API.call("composer", "modify", {
+                            id: id,
+                            name: UI.read("edit-name"),
+                            directory: UI.read("edit-directory"),
+                            repository: UI.read("edit-repository"),
+                            password: localStorage.password
+                        })
+                    );
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
+            };
+            UI.find("edit-clone").onclick = async () => {
+                try {
+                    // Clone repository
+                    await Progress.drawer("Cloning repository...",
+                        API.call("action", "clone", {
+                            token: deployment.token,
+                        })
+                    );
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
 
                 // Reload page
                 location.reload();
-            });
-            UI.find("editor-token").addEventListener("click", async () => {
-                // Show progress screen
-                const close = Progress.screen("Generating token...");
+            };
+            UI.find("edit-delete").onclick = async () => {
+                try {
+                    // Prompt the user to confirm
+                    if ((await Prompt.dialog("Are you sure you want to delete the deployment?", "Enter 'yes' if you want to delete")).toLowerCase() !== "yes")
+                        throw new Error("User cancelled deleting the deployment");
 
-                // Generate token
-                const token = await API.call("composer", "token", {
-                    id: id,
-                    permissions: [
-                        "pull",
-                        "start",
-                        "stop"
-                    ],
-                    password: localStorage.password
-                });
+                    // Delete deployment
+                    await Progress.drawer("Deleting deployment...",
+                        API.call("composer", "delete", {
+                            id: id,
+                            password: localStorage.password
+                        })
+                    );
+                } catch (error) {
+                    // Show error dialog
+                    await Alert.dialog(error);
+                }
 
-                // Close progress screen
-                close();
-
-                // Show token
-                await Alert.dialog(`Token: ${token}`);
-            });
+                // Reload page
+                location.reload();
+            };
 
             // Change the view
-            UI.view("editor");
+            UI.view("edit");
 
             // Close progress screen
             close();
@@ -264,12 +412,14 @@
         <div coasted>
             <p medium left>${name}</p>
             <div>
+                <!-- Status view -->
                 <p small left name="status" hidden>Unknown</p>
-                <div spinner></div>
+                <!-- Loading spinner -->
+                <div spinner spinning style="height: 1vh; width: 1vh;"></div>
             </div>
             <div row stretch>
-                <button small left name="view">View</button>
-                <button small right name="edit">Edit</button>
+                <button small left name="view">View deployment</button>
+                <button small right name="edit">Edit deployment</button>
             </div>
         </div>
     </template>
@@ -278,7 +428,7 @@
 <body column>
     <!-- Loading screen -->
     <div id="loading">
-        <div spinner></div>
+        <div spinner spinning></div>
     </div>
     <!-- Dashboard screen -->
     <div id="dashboard" hidden>
@@ -288,7 +438,7 @@
         <p small left id="dashboard-summary">Loading summary...</p>
         <!-- Deployments list, generated dynamically -->
         <div id="dashboard-list" coasted>
-            <div spinner></div>
+            <div spinner spinning></div>
         </div>
         <!-- New deployment button -->
         <button small center id="dashboard-new">Create new deployment</button>
@@ -300,15 +450,19 @@
         <!-- Deployment name -->
         <p small left id="view-name">Loading name...</p>
         <!-- Deployment status -->
-        <p small left id="view-status">Loading status...</p>
+        <p tiny left id="view-status">Loading status...</p>
         <!-- Deployment log -->
         <textarea input tiny left id="view-log" readonly></textarea>
-        <!-- Deployment controls buttons -->
-        <div coasted row>
-            <button small center id="view-start">Start</button>
-            <button small center id="view-stop">Stop</button>
-            <button small center id="view-update">Update</button>
-            <button small center id="view-reset">Reset</button>
+        <!-- Deployment control buttons -->
+        <div coasted>
+            <div stretch row>
+                <button small center id="view-start">Start</button>
+                <button small center id="view-stop">Stop</button>
+            </div>
+            <div stretch row>
+                <button small center id="view-pull">Pull</button>
+                <button small center id="view-reset">Reset</button>
+            </div>
         </div>
     </div>
     <!-- Editing screen -->
@@ -322,20 +476,19 @@
             <!-- Editing repository -->
             <input small left id="edit-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
             <!-- Editing path -->
-            <input small left id="edit-path" placeholder="Path (e.g. example/)" />
+            <input small left id="edit-directory" placeholder="Directory (e.g. example/)" />
         </div>
         <!-- Deploying properties section -->
         <div coasted>
             <!-- Public SSH key of the deployment -->
             <textarea input tiny left id="edit-key" readonly></textarea>
             <!-- Button to create new deployment tokens -->
-            <div>
-                <button small center id="edit-token">Create new token</button>
-            </div>
+            <button small center id="edit-token">Create new token</button>
         </div>
-        <!-- Editing controls buttons -->
-        <div coasted row>
+        <!-- Editing control buttons -->
+        <div coasted stretch row>
             <button small center id="edit-save">Save</button>
+            <button small center id="edit-clone">Clone</button>
             <button small center id="edit-delete">Delete</button>
         </div>
     </div>
