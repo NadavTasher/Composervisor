@@ -12,12 +12,14 @@ export const DELETE_PATH_COMMAND = `rm -rf {path}`;
 export const GIT_COMMAND = `cd {path}; git -c core.sshCommand="ssh -i {path}/${PRIVATE}"`;
 
 // Compose constants
+export const COMPOSE_TAIL = 200;
 export const COMPOSE_TIMEOUT = 3;
 export const COMPOSE_COMMAND = `cd {path}; docker-compose --project-name {id} --project-directory ${REPOSITORY}/{directory}`;
 
 // Control constants
 export const START_DEPLOYMENT_COMMAND = `${COMPOSE_COMMAND} up --detach`;
 export const STOP_DEPLOYMENT_COMMAND = `${COMPOSE_COMMAND} down --remove-orphans --timeout ${COMPOSE_TIMEOUT}`;
+export const STATUS_DEPLOYMENT_COMMAND = `${COMPOSE_COMMAND} logs --no-color --timestamps --tail ${COMPOSE_TAIL}`;
 export const DESTROY_DEPLOYMENT_COMMAND = `${STOP_DEPLOYMENT_COMMAND} --volumes`;
 export const RESET_DEPLOYMENT_COMMAND = `${DESTROY_DEPLOYMENT_COMMAND}; ${START_DEPLOYMENT_COMMAND}`;
 export const RESTART_DEPLOYMENT_COMMAND = `${STOP_DEPLOYMENT_COMMAND}; ${START_DEPLOYMENT_COMMAND}`;

@@ -1,7 +1,10 @@
-// Import utilities
+// Import modules
+import fs from "fs";
 import process from "process";
+
+// Import utilities
 import { read, write, render } from "./utilities.mjs";
-import { File, Charset, Authority, execute, join } from "../internal/utilities.mjs";
+import { File, Charset, Authority, execute, join, render } from "../internal/utilities.mjs";
 import { PATH, CREATE_PATH_COMMAND, REPOSITORY, CREATE_DEPLOYMENT_COMMAND, UPDATE_DEPLOYMENT_COMMAND } from "./constants.mjs";
 
 // Create database files
@@ -23,8 +26,21 @@ if (!properties.secret) {
 // Create token validation object
 const Token = new Authority(properties.secret);
 
-// Password validation function
-const validate = async function (password) {
+// Export function to read files
+export function read(path) {
+	return fs.readFileSync(path).toString();
+};
+
+// Export function to write files
+export function write(path, data) {
+	return fs.writeFileSync(path, data);
+};
+
+// Export password validation function
+export async function validate(password) {
+	// Sleep for a second
+	await new Promise(resolve => setTimeout(resolve, 1000));
+
 	// Validate the password
 	return (password === process.env.PASSWORD);
 };
@@ -46,30 +62,6 @@ export default {
 			handler: async () => {
 				// Read the database
 				const database = Database.read({});
-
-				// Read all SSH public keys
-				for (const [id, entry] of Object.entries(database)) {
-					// Read the public key
-					const key = read(join(PATH, id, KEY));
-
-					// Set the public key in the database entry
-					entry.key = key;
-
-					// Add entry to dictionary
-					database[id] = entry;
-				}
-
-				// Generate 10-minute action tokens
-				for (const [id, entry] of Object.entries(database)) {
-					// Generate the token
-					const token = Token.issue(`Temporary access token for ${id}`, { id: id }, PERMISSIONS, new Date().getTime() + 60 * 10 * 1000);
-
-					// Add token to database entry
-					entry.token = token;
-
-					// Add entry to dictionary
-					database[id] = entry;
-				}
 
 				// Return the database
 				return database;
@@ -100,6 +92,34 @@ export default {
 				id: "string",
 				// Token permissions
 				permissions: "array",
+				// Password authorization
+				password: validate,
+			}
+		},
+		fetch: {
+			handler: async (parameters) => {
+				// Read the database
+				const database = Database.read({});
+
+				// Make sure deployment exists
+				if (!database[parameters.id])
+					throw new Error("Deployment does not exist");
+
+				// Read the deployment
+				const deployment = database[parameters.id];
+
+				// Set the public key in the deployment object
+				deployment.key = read(join(PATH, parameters.id, PUBLIC));
+
+				// Create temporary action token
+				deployment.token = Token.issue(`Temporary access token for ${parameters.id}`, { id: parameters.id }, PERMISSIONS, new Date().getTime() + 60 * 10 * 1000);
+
+				// Return the deployment
+				return deployment;
+			},
+			parameters: {
+				// Deployment ID
+				id: "string",
 				// Password authorization
 				password: validate,
 			}
@@ -260,10 +280,14 @@ export default {
 				if (fs.existsSync(join(PATH, id, REPOSITORY)))
 					throw new Error("Deployment was already cloned");
 
+				if (!deployment.repository)
+					throw new Error("Deployment has no repository");
+
 				// Clone the repository
 				return await execute(render(CREATE_DEPLOYMENT_COMMAND, {
 					id: id,
 					path: join(PATH, id),
+					directory: deployment.directory,
 					repository: deployment.repository
 				}));
 			},
@@ -283,6 +307,9 @@ export default {
 				if (!database[id])
 					throw new Error("Deployment does not exist");
 
+				// Read the deployment
+				const deployment = database[id];
+
 				// Make sure the repository directory exists
 				if (!fs.existsSync(join(PATH, id, REPOSITORY)))
 					throw new Error("Deployment was not cloned");
@@ -291,6 +318,7 @@ export default {
 				return await execute(render(START_DEPLOYMENT_COMMAND, {
 					id: id,
 					path: join(PATH, id),
+					directory: deployment.directory
 				}));
 			},
 			parameters: {
@@ -309,6 +337,9 @@ export default {
 				if (!database[id])
 					throw new Error("Deployment does not exist");
 
+				// Read the deployment
+				const deployment = database[id];
+
 				// Make sure the repository directory exists
 				if (!fs.existsSync(join(PATH, id, REPOSITORY)))
 					throw new Error("Deployment was not cloned");
@@ -317,6 +348,7 @@ export default {
 				return await execute(render(STOP_DEPLOYMENT_COMMAND, {
 					id: id,
 					path: join(PATH, id),
+					directory: deployment.directory,
 				}));
 			},
 			parameters: {
@@ -360,6 +392,3 @@ export default {
 		}
 	}
 };
-
-// Start background loops
-setInterval(healthcheck, 1000 * 60 * 5);

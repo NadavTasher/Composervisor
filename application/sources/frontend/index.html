@@ -64,21 +64,192 @@
             // Load the modules
             await Module.load("API", "UI", "GUI");
 
-            // Add action listeners to the buttons
+            // Make sure password exists
+            if (!localStorage.password) {
+                // Read password from prompt
+                const password = await Prompt.dialog("Please enter your password", "Password");
 
+                // Check password
+                try {
+                    // Make a simple API call
+                    await API.call("composer", "list", { password });
+
+                    // Save password
+                    localStorage.password = password;
+                } catch (ignored) {
+                    // Show error dialog
+                    await Alert.dialog("Entered password is incorrect!");
+
+                    // Reload page
+                    location.reload();
+                }
+            }
+
+            // Add action listeners to the buttons
+            UI.find("dashboard-new").addEventListener("click", async () => {
+                // Show progress screen
+                const close = Progress.screen("Creating new deployment...");
+
+                // Create new deployment and display editing page
+                const id = await API.call("composer", "create", { password: localStorage.password });
+
+                // Close progress screen
+                close();
+
+                // Redirect to editing page
+                await loadEditor(id);
+            });
 
         });
 
         async function loadDashboard() {
+            // Show progress screen
+            const close = Progress.screen("Loading dashboard...");
 
+            // Get list of deployments
+            const deployments = await API.call("composer", "list", { password: localStorage.password });
+
+            // Clear list of deployments
+            UI.clear("dashboard-list");
+
+            // Add deployments to the list
+            for (const deployment of deployments) {
+                // Create deployment element from template
+                const element = UI.populate("dashboard-deployment", {
+                    name: deployment.name,
+                });
+
+                // Find status element
+                const status = element.find("status");
+
+                // Send request to view the status of the deployment
+                API.call("actions", "status", { token: deployment.token }).then(
+                    (log) => {
+                        // Split log into lines
+                        const lines = log.trim().split("\n");
+
+                        // Set the color
+                        status.style.color = "green";
+
+                        // Set the contents
+                        UI.write(status, lines[lines.length - 1]);
+
+                        // Set the inner view
+                        UI.view(status);
+                    }
+                ).catch(
+                    (error) => {
+                        // Set the color
+                        status.style.color = "red";
+
+                        // Set the contents
+                        UI.write(status, error);
+
+                        // Set the inner view
+                        UI.view(status);
+                    }
+                );
+
+                // Add event listeners to the buttons
+                element.find("view").addEventListener("click", async () => {
+                    // Redirect to deployment page
+                    await loadViewer(deployment.id);
+                });
+                element.find("edit").addEventListener("click", async () => {
+                    // Redirect to editing page
+                    await loadEditor(deployment.id);
+                });
+
+                // Add item to the list
+                UI.find("dashboard-list").appendChild(item);
+            }
         }
 
-        async function loadDeployment(id) {
+        async function loadViewer(id) {
 
         }
 
         async function loadEditor(id) {
+            // Show progress screen
+            const close = Progress.screen("Loading the editor...");
 
+            // Fetch deployment details
+            const deployment = await API.call("composer", "fetch", {
+                id: id,
+                password: localStorage.password
+            });
+
+            // Add data to the editor
+            UI.write("editor-key", deployment.key || "Missing SSH Key");
+            UI.write("editor-name", deployment.name || `Unnamed deployment - ${id}`);
+            UI.write("editor-directory", deployment.directory || "/");
+            UI.write("editor-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
+
+            // Clear event listeners for buttons
+            UI.find("editor-save").removeEventListener("click");
+            UI.find("editor-delete").removeEventListener("click");
+            UI.find("editor-token").removeEventListener("click");
+
+            // Add event listeners to the buttons
+            UI.find("editor-save").addEventListener("click", async () => {
+                // Show progress screen
+                const close = Progress.screen("Saving changes...");
+
+                // Save changes
+                await API.call("composer", "save", {
+                    id: id,
+                    name: UI.read("editor-name"),
+                    directory: UI.read("editor-dirctory"),
+                    repository: UI.read("editor-repository"),
+                    password: localStorage.password
+                });
+
+                // Close progress screen
+                close();
+            });
+            UI.find("editor-delete").addEventListener("click", async () => {
+                // Show progress screen
+                const close = Progress.screen("Deleting deployment...");
+
+                // Delete deployment
+                await API.call("composer", "delete", {
+                    id: id,
+                    password: localStorage.password
+                });
+
+                // Close progress screen
+                close();
+
+                // Reload page
+                location.reload();
+            });
+            UI.find("editor-token").addEventListener("click", async () => {
+                // Show progress screen
+                const close = Progress.screen("Generating token...");
+
+                // Generate token
+                const token = await API.call("composer", "token", {
+                    id: id,
+                    permissions: [
+                        "pull",
+                        "start",
+                        "stop"
+                    ],
+                    password: localStorage.password
+                });
+
+                // Close progress screen
+                close();
+
+                // Show token
+                await Alert.dialog(`Token: ${token}`);
+            });
+
+            // Change the view
+            UI.view("editor");
+
+            // Close progress screen
+            close();
         }
     </script>
 
@@ -92,10 +263,13 @@
     <template id="dashboard-deployment">
         <div coasted>
             <p medium left>${name}</p>
-            <p small left style="color: ${color};">${status}</p>
+            <div>
+                <p small left name="status" hidden>Unknown</p>
+                <div spinner></div>
+            </div>
             <div row stretch>
-                <button small left name="view">View ${name}</button>
-                <button small right name="edit">Edit ${name}</button>
+                <button small left name="view">View</button>
+                <button small right name="edit">Edit</button>
             </div>
         </div>
     </template>
@@ -120,36 +294,46 @@
         <button small center id="dashboard-new">Create new deployment</button>
     </div>
     <!-- Deployment screen -->
-    <div id="deployment" hidden>
+    <div id="view" hidden>
         <!-- Page title -->
         <p large left>Composervisor / Deployment</p>
         <!-- Deployment name -->
-        <p small left id="deployment-name">Loading name...</p>
+        <p small left id="view-name">Loading name...</p>
         <!-- Deployment status -->
-        <p small left id="deployment-status">Loading status...</p>
+        <p small left id="view-status">Loading status...</p>
         <!-- Deployment log -->
-        <textarea id="deployment-log" readonly></textarea>
+        <textarea input tiny left id="view-log" readonly></textarea>
         <!-- Deployment controls buttons -->
         <div coasted row>
-            <button small center id="deployment-start">Start</button>
-            <button small center id="deployment-stop">Stop</button>
-            <button small center id="deployment-update">Update</button>
-            <button small center id="deployment-reset">Reset</button>
+            <button small center id="view-start">Start</button>
+            <button small center id="view-stop">Stop</button>
+            <button small center id="view-update">Update</button>
+            <button small center id="view-reset">Reset</button>
         </div>
     </div>
     <!-- Editing screen -->
     <div id="edit" hidden>
         <!-- Page title -->
         <p large left>Composervisor / Edit</p>
-        <!-- Editing name -->
-        <input small left id="edit-name" placeholder="Name (e.g. Home-control server)"/>
-        <!-- Editing repository -->
-        <input small left id="edit-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)"/>
-        <!-- Editing path -->
-        <input small left id="edit-path" placeholder="Path (e.g. example/)"/>
-        <!-- Deployment log -->
-        <textarea id="edit-public-key" readonly></textarea>
-        <!-- Deployment controls buttons -->
+        <!-- Static properties section -->
+        <div coasted>
+            <!-- Editing name -->
+            <input small left id="edit-name" placeholder="Name (e.g. Home-control server)" />
+            <!-- Editing repository -->
+            <input small left id="edit-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
+            <!-- Editing path -->
+            <input small left id="edit-path" placeholder="Path (e.g. example/)" />
+        </div>
+        <!-- Deploying properties section -->
+        <div coasted>
+            <!-- Public SSH key of the deployment -->
+            <textarea input tiny left id="edit-key" readonly></textarea>
+            <!-- Button to create new deployment tokens -->
+            <div>
+                <button small center id="edit-token">Create new token</button>
+            </div>
+        </div>
+        <!-- Editing controls buttons -->
         <div coasted row>
             <button small center id="edit-save">Save</button>
             <button small center id="edit-delete">Delete</button>
