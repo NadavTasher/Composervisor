@@ -17,8 +17,8 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
         # Environment variables
         environment:
-            - PASSWORD=TestPassword1
             - SECRET=MySecret
+            - PASSWORD=TestPassword1
 
 volumes:
     data:

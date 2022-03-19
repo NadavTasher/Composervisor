@@ -1,5 +1,5 @@
 // SSH constants
-export const PRIVATE = `ssh-key`;
+export const PRIVATE = `key`;
 export const PUBLIC = `${PRIVATE}.pub`;
 
 // General constants
