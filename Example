@@ -6,6 +6,8 @@ services:
     application:
         # Select service image
         image: dockervisor/composervisor
+        # Restart policy
+        restart: unless-stopped
         # Expose ports
         ports: 
             - 7000:80
