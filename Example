@@ -5,10 +5,10 @@ services:
     # Create template service
     application:
         # Select service image
-        build: application
+        image: dockervisor/composervisor
         # Expose ports
         ports: 
-            - 8000:80
+            - 7000:80
         # Mount volumes
         volumes:
             # Persistent data volume
