@@ -1,5 +1,5 @@
 # Select the base image
-FROM webhood/template:2022.03.12
+FROM webhood/template:2022.03.19
 
 # Install some dependencies
 RUN apt update
