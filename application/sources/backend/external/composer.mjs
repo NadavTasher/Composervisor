@@ -131,33 +131,6 @@ const ROUTES = {
 				password: validate,
 			}
 		},
-		token: {
-			handler: async (parameters) => {
-				// Issue the token
-				return Token.issue(
-					// Token title
-					`Permenant access token for ${parameters.id}`,
-					// Token contents
-					{
-						id: parameters.id
-					},
-					// Token permissions
-					[
-						"pull",
-						"stop",
-						"start",
-						"update",
-						"restart",
-					],
-					// Token expiration
-					0,
-				);
-			},
-			parameters: {
-				id: deployment,
-				password: validate,
-			}
-		},
 		fetch: {
 			handler: async (parameters) => {
 				// Fetch the deployment object
@@ -184,6 +157,33 @@ const ROUTES = {
 
 				// Return the deployment
 				return entry;
+			},
+			parameters: {
+				id: deployment,
+				password: validate,
+			}
+		},
+		token: {
+			handler: async (parameters) => {
+				// Issue the token
+				return Token.issue(
+					// Token title
+					`Permenant access token for ${parameters.id}`,
+					// Token contents
+					{
+						id: parameters.id
+					},
+					// Token permissions
+					[
+						"pull",
+						"stop",
+						"start",
+						"update",
+						"restart",
+					],
+					// Token expiration
+					0,
+				);
 			},
 			parameters: {
 				id: deployment,

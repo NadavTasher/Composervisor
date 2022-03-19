@@ -253,7 +253,7 @@
                                 throw new Error("User cancelled the action");
                         }
 
-                        // Start deployment
+                        // Execute action
                         await Progress.drawer("Executing action...",
                             API.call("action", action, {
                                 token: deployment.token,
