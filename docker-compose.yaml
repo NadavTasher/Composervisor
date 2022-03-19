@@ -18,6 +18,7 @@ services:
         # Environment variables
         environment:
             - PASSWORD=TestPassword1
+            - SECRET=MySecret
 
 volumes:
     data:

@@ -1,28 +1,33 @@
 // SSH constants
 export const PRIVATE = `ssh-key`;
 export const PUBLIC = `${PRIVATE}.pub`;
-export const CREATE_KEY_COMMAND = `ssh-keygen -t rsa -b 4096 -f "{path}/${PRIVATE}" -N "" -C "Deployment key for {id}"`;
 
 // General constants
+export const TAIL = 100;
+export const TIMEOUT = 3;
 export const REPOSITORY = "repository";
-export const CREATE_PATH_COMMAND = `mkdir -p {path}`;
-export const DELETE_PATH_COMMAND = `rm -rf {path}`;
 
-// Git constants
-export const GIT_COMMAND = `cd {path}; git -c core.sshCommand="ssh -i {path}/${PRIVATE}"`;
+// General commands
+export const MKDIR_COMMAND = `mkdir -p {path}`;
+export const RMDIR_COMMAND = `rm -rf {path}`;
+export const CD_COMMAND = `cd {path}`;
+export const KEY_COMMAND = `ssh-keygen -t rsa -b 4096 -f "{path}/${PRIVATE}" -N "" -C "Deployment key for {id}"`;
+export const GIT_COMMAND = `${CD_COMMAND}; git -c core.sshCommand="ssh -i {path}/${PRIVATE}"`;
+export const COMPOSE_COMMAND = `${CD_COMMAND}; docker-compose --project-name {id} --project-directory ${REPOSITORY}/{directory}`;
 
-// Compose constants
-export const COMPOSE_TAIL = 200;
-export const COMPOSE_TIMEOUT = 3;
-export const COMPOSE_COMMAND = `cd {path}; docker-compose --project-name {id} --project-directory ${REPOSITORY}/{directory}`;
-
-// Control constants
-export const START_DEPLOYMENT_COMMAND = `${COMPOSE_COMMAND} up --detach`;
-export const STOP_DEPLOYMENT_COMMAND = `${COMPOSE_COMMAND} down --remove-orphans --timeout ${COMPOSE_TIMEOUT}`;
-export const STATUS_DEPLOYMENT_COMMAND = `${COMPOSE_COMMAND} logs --no-color --timestamps --tail ${COMPOSE_TAIL}`;
-export const DESTROY_DEPLOYMENT_COMMAND = `${STOP_DEPLOYMENT_COMMAND} --volumes`;
-export const RESET_DEPLOYMENT_COMMAND = `${DESTROY_DEPLOYMENT_COMMAND}; ${START_DEPLOYMENT_COMMAND}`;
-export const RESTART_DEPLOYMENT_COMMAND = `${STOP_DEPLOYMENT_COMMAND}; ${START_DEPLOYMENT_COMMAND}`;
-export const DELETE_DEPLOYMENT_COMMAND = `${DESTROY_DEPLOYMENT_COMMAND}; ${DELETE_PATH_COMMAND}`;
-export const UPDATE_DEPLOYMENT_COMMAND = `${GIT_COMMAND} pull`;
-export const CREATE_DEPLOYMENT_COMMAND = `${GIT_COMMAND} clone {repository} ${REPOSITORY}`;
+// Deployment statuscommands
+export const LOG_COMMAND = `${COMPOSE_COMMAND} logs --no-color --timestamps --tail ${TAIL}`;
+export const STATUS_COMMAND = `${COMPOSE_COMMAND} ps --quiet`;
+// Deployment state commands
+export const STOP_COMMAND = `${COMPOSE_COMMAND} down --remove-orphans --timeout ${TIMEOUT}`;
+export const START_COMMAND = `${COMPOSE_COMMAND} up --detach`;
+export const RESTART_COMMAND = `${STOP_COMMAND}; ${START_COMMAND}`;
+// Deployment destruction commands
+export const DESTROY_COMMAND = `${STOP_COMMAND} --volumes`;
+export const RESET_COMMAND = `${DESTROY_COMMAND}; ${START_COMMAND}`;
+// Deployment repository commands
+export const PULL_COMMAND = `${GIT_COMMAND} -C ${REPOSITORY} pull`;
+export const CLONE_COMMAND = `${GIT_COMMAND} clone {repository} ${REPOSITORY}`;
+// Deployment management commands
+export const BUILD_COMMAND = `${COMPOSE_COMMAND} build --pull --force-rm`;
+export const UPDATE_COMMAND = `${PULL_COMMAND}; ${BUILD_COMMAND}`;
