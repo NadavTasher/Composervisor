@@ -184,8 +184,8 @@ const ROUTES = {
 						"update",
 						"restart",
 					],
-					// Token expiration
-					0,
+					// Token expiration (10 years)
+					new Date().getTime() + 10 * 60 * 60 * 24 * 365 * 1000,
 				);
 			},
 			parameters: {
