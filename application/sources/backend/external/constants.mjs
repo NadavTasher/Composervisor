@@ -31,3 +31,4 @@ export const CLONE_COMMAND = `${GIT_COMMAND} clone {repository} ${REPOSITORY}`;
 // Deployment management commands
 export const BUILD_COMMAND = `${COMPOSE_COMMAND} build --pull --force-rm`;
 export const UPDATE_COMMAND = `${PULL_COMMAND}; ${BUILD_COMMAND}`;
+export const WEBHOOK_COMMAND = `${UPDATE_COMMAND}; ${RESTART_COMMAND}`;

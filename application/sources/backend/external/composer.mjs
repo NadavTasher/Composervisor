@@ -30,6 +30,7 @@ import {
 	PULL_COMMAND,
 	CLONE_COMMAND,
 	UPDATE_COMMAND,
+	WEBHOOK_COMMAND,
 } from "./constants.mjs";
 
 // Create token validation object
@@ -79,6 +80,8 @@ const ACTIONS = {
 	// Status actions
 	"log": [LOG_COMMAND, true],
 	"status": [STATUS_COMMAND, true],
+	// Webhook actions
+	"webhook": [WEBHOOK_COMMAND, true],
 };
 
 // Stores action routes
