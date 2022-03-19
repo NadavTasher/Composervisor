@@ -68,20 +68,20 @@ function deployment(id) {
 // Create all route definitions
 const ACTIONS = {
 	// Management actions
-	"pull": [PULL_COMMAND, true],
-	"clone": [CLONE_COMMAND, false],
-	"update": [UPDATE_COMMAND, true],
-	"destroy": [DESTROY_COMMAND, true],
+	"pull": [PULL_COMMAND, false, true],
+	"clone": [CLONE_COMMAND, false, false],
+	"update": [UPDATE_COMMAND, false, true],
+	"destroy": [DESTROY_COMMAND, false, true],
 	// State actions
-	"stop": [STOP_COMMAND, true],
-	"start": [START_COMMAND, true],
-	"reset": [RESET_COMMAND, true],
-	"restart": [RESTART_COMMAND, true],
+	"stop": [STOP_COMMAND, false, true],
+	"start": [START_COMMAND, false, true],
+	"reset": [RESET_COMMAND, false, true],
+	"restart": [RESTART_COMMAND, false, true],
 	// Status actions
-	"log": [LOG_COMMAND, true],
-	"status": [STATUS_COMMAND, true],
+	"log": [LOG_COMMAND, false, true],
+	"status": [STATUS_COMMAND, false, true],
 	// Webhook actions
-	"webhook": [WEBHOOK_COMMAND, true],
+	"webhook": [WEBHOOK_COMMAND, true, true],
 };
 
 // Stores action routes
@@ -154,7 +154,7 @@ const ROUTES = {
 					},
 					// Token permissions
 					Object.keys(ACTIONS),
-					// Token expiration
+					// Token expiration (10 minutes)
 					new Date().getTime() + 60 * 10 * 1000
 				);
 
@@ -269,7 +269,7 @@ const ROUTES = {
 };
 
 // Loop over all actions and create route functions
-for (const [action, [command, exists]] of Object.entries(ACTIONS)) {
+for (const [action, [command, asynchronous, exists]] of Object.entries(ACTIONS)) {
 	// Create the route function
 	ROUTES.action[action] = {
 		handler: async (parameters) => {
@@ -301,7 +301,14 @@ for (const [action, [command, exists]] of Object.entries(ACTIONS)) {
 					throw new Error("Deployment repository is already initialized");
 
 			// Execute the command
-			return await execute(render(command, entry));
+			const promise = execute(render(command, entry));
+
+			// Check if the action is asynchronous
+			if (asynchronous)
+				return null;
+
+			// Wait for the promise to be resolved
+			return await promise;
 		},
 		parameters: {
 			token: "string",
