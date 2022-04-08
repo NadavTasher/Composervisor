@@ -135,13 +135,9 @@
 
             // Sort deployment entries by name
             const entries = Object.entries(deployments).sort(
-                (a, b) => {
-                    // Get deployments from objects
-                    const [idA, deploymentA] = a;
-                    const [idB, deploymentB] = b;
-
+                ([a, A], [b, B]) => {
                     // Compare deployment names
-                    return deploymentA.name.localeCompare(deploymentB.name);
+                    return String(A.name).localeCompare(String(B.name));
                 }
             );
 

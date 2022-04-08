@@ -8,12 +8,12 @@ export const TIMEOUT = 3;
 export const REPOSITORY = "repository";
 
 // General commands
-export const MKDIR_COMMAND = `mkdir -p {path}`;
-export const RMDIR_COMMAND = `rm -rf {path}`;
-export const CD_COMMAND = `cd {path}`;
+export const MKDIR_COMMAND = `mkdir -p "{path}"`;
+export const RMDIR_COMMAND = `rm -rf "{path}"`;
+export const CD_COMMAND = `cd "{path}"`;
 export const KEY_COMMAND = `ssh-keygen -t rsa -b 4096 -f "{path}/${PRIVATE}" -N "" -C "Deployment key for {id}"`;
 export const GIT_COMMAND = `${CD_COMMAND}; git -c core.sshCommand="ssh -i {path}/${PRIVATE}"`;
-export const COMPOSE_COMMAND = `${CD_COMMAND}; docker-compose --project-name {id} --project-directory ${REPOSITORY}/{directory}`;
+export const COMPOSE_COMMAND = `${CD_COMMAND}; docker-compose --project-name "{id}" --project-directory "${REPOSITORY}/{directory}"`;
 
 // Deployment statuscommands
 export const LOG_COMMAND = `${COMPOSE_COMMAND} logs --no-color --timestamps --tail ${TAIL}`;

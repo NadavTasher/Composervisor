@@ -13,6 +13,7 @@ import {
 	render,
 	random,
 	execute,
+	evaluate,
 } from "../internal/utilities.mjs";
 import { 
 	PUBLIC,
@@ -113,10 +114,10 @@ const ROUTES = {
 				const entry = deployment(id);
 
 				// Create deployment folder
-				await execute(render(MKDIR_COMMAND, entry));
+				await evaluate(MKDIR_COMMAND, entry);
 
 				// Generate a new SSH key pair
-				await execute(render(KEY_COMMAND, entry));
+				await evaluate(KEY_COMMAND, entry);
 
 				// Return the generated ID
 				return id;
@@ -233,7 +234,7 @@ const ROUTES = {
 					// Try destoying the deployment
 					try {
 						// Destroy the deployment
-						await execute(render(DESTROY_COMMAND, entry));
+						await evaluate(DESTROY_COMMAND, entry);
 					} catch (error) {
 						// Ignore errors
 					}
@@ -242,7 +243,7 @@ const ROUTES = {
 				// Try deleting the deployment folder
 				try {
 					// Delete the deployment folder
-					await execute(render(RMDIR_COMMAND, entry));
+					await evaluate(RMDIR_COMMAND, entry);
 				} catch (error) {
 					// Ignore errors
 				}
@@ -301,7 +302,7 @@ for (const [action, [command, asynchronous, exists]] of Object.entries(ACTIONS))
 					throw new Error("Deployment repository is already initialized");
 
 			// Execute the command
-			const promise = execute(render(command, entry));
+			const promise = evaluate(command, entry);
 
 			// Check if the action is asynchronous
 			if (asynchronous)
