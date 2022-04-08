@@ -50,7 +50,7 @@
         }
 
         body {
-            max-width: 500px;
+            max-width: 1000px;
         }
 
         textarea {
@@ -61,11 +61,11 @@
         }
 
         #view-log {
-            min-height: 55vh;
+            min-height: 35vh;
         }
 
         #edit-key {
-            min-height: 30vh;
+            min-height: 15vh;
         }
 
         #dashboard-list {
@@ -133,8 +133,20 @@
             // Clear list of deployments
             UI.clear("dashboard-list");
 
+            // Sort deployment entries by name
+            const entries = Object.entries(deployments).sort(
+                (a, b) => {
+                    // Get deployments from objects
+                    const [idA, deploymentA] = a;
+                    const [idB, deploymentB] = b;
+
+                    // Compare deployment names
+                    return deploymentA.name.localeCompare(deploymentB.name);
+                }
+            );
+
             // Add deployments to the list
-            for (const [id, deployment] of Object.entries(deployments)) {
+            for (const [id, deployment] of entries) {
                 // Create deployment element from template
                 const element = UI.populate("dashboard-deployment", {
                     name: deployment.name,
@@ -242,7 +254,13 @@
                 UI.write("view-status", "Deployment is not running");
             }
 
-            // Add event listeners to the buttons
+            // Add event listener to the refresh button
+            UI.find("view-refresh").onclick = async () => {
+                // Refresh the log
+                await loadViewer(id);
+            };
+
+            // Add event listeners to the controls
             for (const action of ["start", "stop", "update", "clone", "reset"]) {
                 UI.find(`view-${action}`).onclick = async () => {
                     try {
@@ -289,7 +307,7 @@
             // Add data to the editor
             UI.write("edit-key", deployment.key || "Missing SSH Key");
             UI.write("edit-name", deployment.name || `Unnamed deployment - ${id}`);
-            UI.write("edit-directory", deployment.directory || "/");
+            UI.write("edit-directory", deployment.directory || ".");
             UI.write("edit-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
 
             // Add event listeners to the buttons
@@ -317,12 +335,13 @@
                         );
 
                         // Check if result exists and needs to be displayed
-                        if (result)
+                        if (result) {
                             // Show result
-                            await Alert.dialog(result);
-                        else
+                            await Alert.dialog(`${window.location.href}api/action/webhook/?token=${encodeURIComponent(result)}`);
+                        } else {
                             // Reload the page
                             location.reload();
+                        }
                     } catch (error) {
                         // Show error dialog
                         await Alert.dialog(error);
@@ -352,9 +371,9 @@
             <!-- Deployment status -->
             <p small left name="status">Loading status...</p>
             <!-- Deployment controls -->
-            <div row stretch>
-                <button small left name="view">View deployment</button>
-                <button small right name="edit">Edit deployment</button>
+            <div row style="justify-content: flex-start;">
+                <p small pointer name="view">View</p>
+                <p small pointer name="edit">Edit</p>
             </div>
         </div>
     </template>
@@ -372,22 +391,34 @@
             <div spinner spinning></div>
         </div>
         <!-- New deployment button -->
-        <button small center id="dashboard-new">Create new deployment</button>
+        <div coasted>
+            <button small center id="dashboard-new">Create deployment</button>
+        </div>
     </div>
     <!-- Deployment screen -->
     <div id="view" hidden>
         <!-- Page title -->
         <p large left>Composervisor / Deployment</p>
         <!-- Deployment name -->
-        <p small left id="view-name">Loading name...</p>
+        <div coasted>
+            <p tiny left>Name</p>
+            <p small left id="view-name">Loading name...</p>
+        </div>
         <!-- Deployment status -->
-        <p tiny left id="view-status">Loading status...</p>
+        <div coasted>
+            <p tiny left>Status</p>
+            <p small left id="view-status">Loading status...</p>
+        </div>
         <!-- Deployment log -->
-        <textarea input tiny left id="view-log" readonly></textarea>
+        <div coasted>
+            <p tiny left>Log</p>
+            <textarea input tiny left id="view-log" readonly></textarea>
+        </div>
         <!-- Deployment control buttons -->
         <div coasted>
             <div stretch row>
                 <button small center id="view-start">Start</button>
+                <button small center id="view-refresh">Refresh</button>
                 <button small center id="view-stop">Stop</button>
             </div>
             <div stretch row>
@@ -401,25 +432,30 @@
     <div id="edit" hidden>
         <!-- Page title -->
         <p large left>Composervisor / Edit</p>
-        <!-- Static properties section -->
+        <!-- Deployment name -->
         <div coasted>
-            <!-- Editing name -->
+            <p tiny left>Name</p>
             <input small left id="edit-name" placeholder="Name (e.g. Home-control server)" />
-            <!-- Editing repository -->
+        </div>
+        <!-- Repository address -->
+        <div coasted>
+            <p tiny left>Git repository address</p>
             <input small left id="edit-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
-            <!-- Editing path -->
+        </div>
+        <!-- Docker-Compose directory path -->
+        <div coasted>
+            <p tiny left>Directory with docker-compose file</p>
             <input small left id="edit-directory" placeholder="Directory (e.g. example/)" />
         </div>
-        <!-- Deploying properties section -->
+        <!-- Public SSH key -->
         <div coasted>
-            <!-- Public SSH key of the deployment -->
+            <p tiny left>Deploy key / Public SSH key</p>
             <textarea input tiny left id="edit-key" readonly></textarea>
-            <!-- Button to create new deployment tokens -->
-            <button small center id="edit-token">Generate new access token</button>
         </div>
         <!-- Editing control buttons -->
         <div coasted stretch row>
             <button small center id="edit-update">Update</button>
+            <button small center id="edit-token">Token</button>
             <button small center id="edit-delete">Delete</button>
         </div>
     </div>
