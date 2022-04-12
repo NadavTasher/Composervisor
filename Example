@@ -10,7 +10,8 @@ services:
         restart: unless-stopped
         # Expose ports
         ports: 
-            - 7000:80
+            - 8080:80
+            - 8443:443
         # Mount volumes
         volumes:
             # Persistent data volume
