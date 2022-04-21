@@ -53,27 +53,24 @@
             max-width: 1000px;
         }
 
-        textarea {
-        }
-
         * {
             font-family: monospace !important;
         }
 
-        #view-log {
+        #deployment-log {
             min-height: 30vh;
         }
 
-        #edit-key {
+        #settings-key {
             min-height: 15vh;
         }
 
         #dashboard-list {
-            min-height: 60vh;
+            min-height: 65vh;
             justify-content: flex-start;
         }
 
-        #edit-delete, #view-reset {
+        #settings-delete, #deployment-reset {
             color: #ffffff;
             background-color: #ee8888;
         }
@@ -93,7 +90,9 @@
                 // Check password
                 try {
                     // Make a simple API call
-                    await API.call("composer", "list", {password});
+                    await API.call("composer", "list", {
+                        password: password
+                    });
 
                     // Save password
                     localStorage.password = password;
@@ -116,19 +115,24 @@
                 );
 
                 // Redirect to editing page
-                await loadEditor(id);
+                await Progress.screen("Loading settings...", loadSettings(id));
+
+                // Change view
+                UI.view("settings");
             };
 
             // Load the dashboard
-            await loadDashboard();
+            await Progress.screen("Loading dashboard...", loadDashboard());
+
+            // Show the dashboard
+            UI.show("dashboard");
         });
 
         async function loadDashboard() {
-            // Show progress screen
-            const close = Progress.screen("Loading dashboard...");
-
             // Get list of deployments
-            const deployments = await API.call("composer", "list", {password: localStorage.password});
+            const deployments = await API.call("composer", "list", {
+                password: localStorage.password
+            });
 
             // Clear list of deployments
             UI.clear("dashboard-list");
@@ -186,13 +190,19 @@
                 )();
 
                 // Add event listeners to the buttons
-                element.find("view").addEventListener("click", async () => {
+                element.find("deployment").addEventListener("click", async () => {
                     // Redirect to deployment page
-                    await loadViewer(id);
+                    await Progress.drawer("Loading deployment...", loadDeployment(id));
+
+                    // Change view
+                    UI.view("deployment");
                 });
-                element.find("edit").addEventListener("click", async () => {
+                element.find("settings").addEventListener("click", async () => {
                     // Redirect to editing page
-                    await loadEditor(id);
+                    await Progress.drawer("Loading settings...", loadSettings(id));
+
+                    // Change view
+                    UI.view("settings");
                 });
 
                 // Add item to the list
@@ -200,19 +210,10 @@
             }
 
             // Write the summary
-            UI.write("dashboard-summary", `There are ${Object.keys(deployments).length} managed deployments`);
-
-            // Change the view
-            UI.view("dashboard");
-
-            // Close progress screen
-            close();
+            UI.write("dashboard-summary", `${Object.keys(deployments).length} managed deployments`);
         }
 
-        async function loadViewer(id) {
-            // Show progress screen
-            const close = Progress.screen("Loading viewer...");
-
+        async function loadDeployment(id) {
             // Fetch deployment details
             const deployment = await API.call("composer", "fetch", {
                 id: id,
@@ -220,7 +221,7 @@
             });
 
             // Add data to the editor
-            UI.write("view-name", deployment.name);
+            UI.write("deployment-name", deployment.name);
 
             try {
                 // Fetch the status of the deployment
@@ -238,27 +239,26 @@
                 });
 
                 // Update the log
-                UI.write("view-log", log);
+                UI.write("deployment-log", log);
 
                 // Set the status message
-                UI.write("view-status", "Deployment is running");
+                UI.write("deployment-status", "Deployment is running");
             } catch (error) {
                 // Update the log
-                UI.write("view-log", "No deployment log");
+                UI.write("deployment-log", "No deployment log");
 
                 // Set the status message
-                UI.write("view-status", "Deployment is not running");
+                UI.write("deployment-status", "Deployment is not running");
             }
 
             // Add event listener to the refresh button
-            UI.find("view-refresh").onclick = async () => {
-                // Refresh the log
-                await loadViewer(id);
+            UI.find("deployment-refresh").onclick = async () => {
+                await Progress.drawer("Refreshing deployment...", loadDeployment(id));
             };
 
             // Add event listeners to the controls
             for (const action of ["start", "stop", "update", "clone", "reset"]) {
-                UI.find(`view-${action}`).onclick = async () => {
+                UI.find(`deployment-${action}`).onclick = async () => {
                     try {
                         // Prompt the user to confirm
                         if (action === "reset") {
@@ -275,25 +275,16 @@
                         );
 
                         // Reload the viewer
-                        await loadViewer(id);
+                        await Progress.drawer("Refreshing deployment...", loadDeployment(id));
                     } catch (error) {
                         // Show error dialog
                         await Alert.dialog(error);
                     }
                 };
             }
-
-            // Change the view
-            UI.view("view");
-
-            // Close progress screen
-            close();
         }
 
-        async function loadEditor(id) {
-            // Show progress screen
-            const close = Progress.screen("Loading editor...");
-
+        async function loadSettings(id) {
             // Fetch deployment details
             const deployment = await API.call("composer", "fetch", {
                 id: id,
@@ -301,14 +292,14 @@
             });
 
             // Add data to the editor
-            UI.write("edit-key", deployment.key || "Missing SSH Key");
-            UI.write("edit-name", deployment.name || `Unnamed deployment - ${id}`);
-            UI.write("edit-directory", deployment.directory || ".");
-            UI.write("edit-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
+            UI.write("settings-key", deployment.key || "Missing SSH Key");
+            UI.write("settings-name", deployment.name || `Unnamed deployment - ${id}`);
+            UI.write("settings-directory", deployment.directory || ".");
+            UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
 
             // Add event listeners to the buttons
             for (const action of ["token", "update", "delete"]) {
-                UI.find(`edit-${action}`).onclick = async () => {
+                UI.find(`settings-${action}`).onclick = async () => {
                     try {
                         // Prompt the user to confirm
                         if (action === "delete") {
@@ -321,9 +312,9 @@
                         const result = await Progress.drawer("Executing action...",
                             API.call("composer", action, {
                                 // Extra parameters
-                                name: UI.read("edit-name"),
-                                directory: UI.read("edit-directory"),
-                                repository: UI.read("edit-repository"),
+                                name: UI.read("settings-name"),
+                                directory: UI.read("settings-directory"),
+                                repository: UI.read("settings-repository"),
                                 // Base parameters
                                 id: id,
                                 password: localStorage.password,
@@ -344,12 +335,6 @@
                     }
                 };
             }
-
-            // Change the view
-            UI.view("edit");
-
-            // Close progress screen
-            close();
         }
     </script>
 
@@ -367,9 +352,9 @@
             <!-- Deployment status -->
             <p small left name="status">Loading status...</p>
             <!-- Deployment controls -->
-            <div row style="justify-content: flex-start;">
-                <p small pointer name="view">View</p>
-                <p small pointer name="edit">Edit</p>
+            <div row stretch>
+                <p small left pointer name="deployment">Deployment</p>
+                <p small right pointer name="settings">Settings</p>
             </div>
         </div>
     </template>
@@ -379,80 +364,85 @@
     <!-- Dashboard screen -->
     <div id="dashboard" hidden>
         <!-- Page title -->
-        <p large left>Composervisor / Dashboard</p>
-        <!-- Deployments summary, generated dynamically -->
-        <p small left id="dashboard-summary">Loading summary...</p>
-        <!-- Deployments list, generated dynamically -->
-        <div id="dashboard-list" coasted>
-            <div spinner spinning></div>
-        </div>
-        <!-- New deployment button -->
+        <p huge left>Dashboard</p>
+        <!-- Deployments summary -->
         <div coasted>
-            <button small center id="dashboard-new">Create deployment</button>
+            <p tiny left>Summary</p>
+            <!-- Dashboard summary and controls -->
+            <div row stretch>
+                <p small left id="dashboard-summary">Loading summary...</p>
+                <p small right pointer id="dashboard-new">New deployment</p>
+            </div>
         </div>
+        <!-- Deployments list, generated dynamically -->
+        <div id="dashboard-list"></div>
     </div>
     <!-- Deployment screen -->
-    <div id="view" hidden>
+    <div id="deployment" hidden>
         <!-- Page title -->
-        <p large left>Composervisor / Deployment</p>
+        <p huge left>Deployment</p>
         <!-- Deployment name -->
         <div coasted>
             <p tiny left>Name</p>
-            <p small left id="view-name">Loading name...</p>
+            <p small left id="deployment-name">Loading name...</p>
         </div>
         <!-- Deployment status -->
         <div coasted>
             <p tiny left>Status</p>
-            <p small left id="view-status">Loading status...</p>
+            <p small left id="deployment-status">Loading status...</p>
         </div>
         <!-- Deployment log -->
         <div coasted>
             <p tiny left>Log</p>
-            <textarea input tiny left id="view-log" readonly></textarea>
+            <textarea input tiny left id="deployment-log" readonly></textarea>
         </div>
         <!-- Deployment control buttons -->
         <div coasted>
-            <div stretch row>
-                <button small center id="view-start">Start</button>
-                <button small center id="view-refresh">Refresh</button>
-                <button small center id="view-stop">Stop</button>
+            <p tiny left>Controls</p>
+            <div row stretch>
+                <button small center id="deployment-start">Start</button>
+                <button small center id="deployment-refresh">Refresh</button>
+                <button small center id="deployment-stop">Stop</button>
             </div>
-            <div stretch row>
-                <button small center id="view-update">Update</button>
-                <button small center id="view-clone">Clone</button>
-                <button small center id="view-reset">Reset</button>
+            <div row stretch>
+                <button small center id="deployment-update">Update</button>
+                <button small center id="deployment-clone">Clone</button>
+                <button small center id="deployment-reset">Reset</button>
             </div>
         </div>
     </div>
     <!-- Editing screen -->
-    <div id="edit" hidden>
+    <div id="settings" hidden>
         <!-- Page title -->
-        <p large left>Composervisor / Edit</p>
+        <p huge left>Settings</p>
         <!-- Deployment name -->
         <div coasted>
             <p tiny left>Name</p>
-            <input small left id="edit-name" placeholder="Name (e.g. Home-control server)" />
+            <input small left id="settings-name" placeholder="Name (e.g. Home-control server)" />
         </div>
         <!-- Repository address -->
         <div coasted>
             <p tiny left>Git repository address</p>
-            <input small left id="edit-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
+            <input small left id="settings-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
         </div>
         <!-- Docker-Compose directory path -->
         <div coasted>
             <p tiny left>Directory with docker-compose file</p>
-            <input small left id="edit-directory" placeholder="Directory (e.g. example/)" />
+            <input small left id="settings-directory" placeholder="Directory (e.g. example/)" />
         </div>
         <!-- Public SSH key -->
         <div coasted>
             <p tiny left>Deploy key / Public SSH key</p>
-            <textarea input tiny left id="edit-key" readonly></textarea>
+            <textarea input tiny left id="settings-key" readonly></textarea>
         </div>
         <!-- Editing control buttons -->
-        <div coasted stretch row>
-            <button small center id="edit-update">Update</button>
-            <button small center id="edit-token">Token</button>
-            <button small center id="edit-delete">Delete</button>
+        <div coasted>
+            <p tiny left>Controls</p>
+            <div row stretch>
+                <button small center id="settings-update">Update</button>
+                <button small center id="settings-token">Token</button>
+                <button small center id="settings-delete">Delete</button>
+            </div>
         </div>
     </div>
 </body>
