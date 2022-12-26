@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import binascii
 
 from router import router
 
