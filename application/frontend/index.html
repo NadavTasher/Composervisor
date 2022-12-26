@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
- Copyright (c) 2021 Nadav Tasher
- https://github.com/Webhood/Template/
+    Copyright (c) 2022 Nadav Tasher
+    https://github.com/Webhood/Template/
 -->
 <html row stretch lang="en">
 
@@ -90,7 +90,7 @@
                 // Check password
                 try {
                     // Make a simple API call
-                    await API.call("composer", "list", {
+                    await API.call("list", {
                         password: password
                     });
 
@@ -109,7 +109,7 @@
             UI.find("dashboard-new").onclick = async () => {
                 // Create new deployment and display editing page
                 const id = await Progress.screen("Creating new deployment...",
-                    API.call("composer", "new", {
+                    API.call("new", {
                         password: localStorage.password
                     })
                 );
@@ -130,7 +130,7 @@
 
         async function loadDashboard() {
             // Get list of deployments
-            const deployments = await API.call("composer", "list", {
+            const deployments = await API.call("list", {
                 password: localStorage.password
             });
 
@@ -160,13 +160,13 @@
                     async () => {
                         try {
                             // Fetch token for deployment
-                            const result = await API.call("composer", "fetch", {
+                            const result = await API.call("fetch", {
                                 id: id,
                                 password: localStorage.password
                             });
 
                             // Fetch status of deployment
-                            const output = await API.call("action", "status", {
+                            const output = await API.call("status", {
                                 token: result.token
                             });
 
@@ -215,7 +215,7 @@
 
         async function loadDeployment(id) {
             // Fetch deployment details
-            const deployment = await API.call("composer", "fetch", {
+            const deployment = await API.call("fetch", {
                 id: id,
                 password: localStorage.password
             });
@@ -225,7 +225,7 @@
 
             try {
                 // Fetch the status of the deployment
-                const status = await API.call("action", "status", {
+                const status = await API.call("status", {
                     token: deployment.token
                 });
 
@@ -234,7 +234,7 @@
                     throw new Error("Status is empty");
 
                 // Fetch the log of the deployment
-                const log = await API.call("action", "log", {
+                const log = await API.call("log", {
                     token: deployment.token
                 });
 
@@ -269,7 +269,7 @@
 
                         // Execute action
                         await Progress.drawer("Executing action...",
-                            API.call("action", action, {
+                            API.call(action, {
                                 token: deployment.token,
                             })
                         );
@@ -286,7 +286,7 @@
 
         async function loadSettings(id) {
             // Fetch deployment details
-            const deployment = await API.call("composer", "fetch", {
+            const deployment = await API.call("fetch", {
                 id: id,
                 password: localStorage.password
             });
@@ -310,7 +310,7 @@
 
                         // Execute action
                         const result = await Progress.drawer("Executing action...",
-                            API.call("composer", action, {
+                            API.call(action, {
                                 // Extra parameters
                                 name: UI.read("settings-name"),
                                 directory: UI.read("settings-directory"),
