@@ -108,14 +108,14 @@
             // Add action listeners to the buttons
             UI.find("dashboard-new").onclick = async () => {
                 // Create new deployment and display editing page
-                const id = await Progress.screen("Creating new deployment...",
+                const identifier = await Progress.screen("Creating new deployment...",
                     API.call("new", {
                         password: localStorage.password
                     })
                 );
 
                 // Redirect to editing page
-                await Progress.screen("Loading settings...", loadSettings(id));
+                await Progress.screen("Loading settings...", loadSettings(identifier));
 
                 // Change view
                 UI.view("settings");
@@ -146,7 +146,7 @@
             );
 
             // Add deployments to the list
-            for (const [id, deployment] of entries) {
+            for (const [identifier, deployment] of entries) {
                 // Create deployment element from template
                 const element = UI.populate("dashboard-deployment", {
                     name: deployment.name,
@@ -161,7 +161,7 @@
                         try {
                             // Fetch token for deployment
                             const result = await API.call("fetch", {
-                                id: id,
+                                identifier: identifier,
                                 password: localStorage.password
                             });
 
@@ -192,14 +192,14 @@
                 // Add event listeners to the buttons
                 element.find("deployment").addEventListener("click", async () => {
                     // Redirect to deployment page
-                    await Progress.drawer("Loading deployment...", loadDeployment(id));
+                    await Progress.drawer("Loading deployment...", loadDeployment(identifier));
 
                     // Change view
                     UI.view("deployment");
                 });
                 element.find("settings").addEventListener("click", async () => {
                     // Redirect to editing page
-                    await Progress.drawer("Loading settings...", loadSettings(id));
+                    await Progress.drawer("Loading settings...", loadSettings(identifier));
 
                     // Change view
                     UI.view("settings");
@@ -213,10 +213,10 @@
             UI.write("dashboard-summary", `${Object.keys(deployments).length} managed deployments`);
         }
 
-        async function loadDeployment(id) {
+        async function loadDeployment(identifier) {
             // Fetch deployment details
             const deployment = await API.call("fetch", {
-                id: id,
+                identifier: identifier,
                 password: localStorage.password
             });
 
@@ -253,7 +253,7 @@
 
             // Add event listener to the refresh button
             UI.find("deployment-refresh").onclick = async () => {
-                await Progress.drawer("Refreshing deployment...", loadDeployment(id));
+                await Progress.drawer("Refreshing deployment...", loadDeployment(identifier));
             };
 
             // Add event listeners to the controls
@@ -275,7 +275,7 @@
                         );
 
                         // Reload the viewer
-                        await Progress.drawer("Refreshing deployment...", loadDeployment(id));
+                        await Progress.drawer("Refreshing deployment...", loadDeployment(identifier));
                     } catch (error) {
                         // Show error dialog
                         await Alert.dialog(error);
@@ -284,16 +284,16 @@
             }
         }
 
-        async function loadSettings(id) {
+        async function loadSettings(identifier) {
             // Fetch deployment details
             const deployment = await API.call("fetch", {
-                id: id,
+                identifier: identifier,
                 password: localStorage.password
             });
 
             // Add data to the editor
             UI.write("settings-key", deployment.key || "Missing SSH Key");
-            UI.write("settings-name", deployment.name || `Unnamed deployment - ${id}`);
+            UI.write("settings-name", deployment.name || `Unnamed deployment - ${identifier}`);
             UI.write("settings-directory", deployment.directory || ".");
             UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
 
@@ -316,7 +316,7 @@
                                 directory: UI.read("settings-directory"),
                                 repository: UI.read("settings-repository"),
                                 // Base parameters
-                                id: id,
+                                identifier: identifier,
                                 password: localStorage.password,
                             })
                         );

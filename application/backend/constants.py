@@ -1,3 +1,6 @@
+# Directory constants
+OUTPUT = f'/opt'
+
 # SSH constants
 PRIVATE = f'key'
 PUBLIC = f'{PRIVATE}.pub'
