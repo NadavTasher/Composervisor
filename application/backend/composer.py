@@ -10,6 +10,7 @@ from constants import *
 from database import Database
 
 from puppy.process import execute
+from puppy.thread.future import future
 from puppy.typing.check import validate, kwargcheck
 from puppy.typing.types import Text, Union, Optional
 from puppy.token.authority import Authority
@@ -17,6 +18,21 @@ from puppy.token.authority import Authority
 Data = Database("/opt/database.json")
 Token = Authority(os.environ.get("SECRET").encode())
 Deployment = collections.namedtuple("Deployment", ["id", "path", "name", "directory", "repository"])
+
+ACTIONS = {
+    # Management actions
+    "pull": PULL_COMMAND,
+    "update": UPDATE_COMMAND,
+    "destroy": DESTROY_COMMAND,
+    # State actions
+    "stop": STOP_COMMAND,
+    "start": START_COMMAND,
+    "reset": RESET_COMMAND,
+    "restart": RESTART_COMMAND,
+    # Status actions
+    "log": LOG_COMMAND,
+    "status": STATUS_COMMAND
+}
 
 
 def TokenType(token):
@@ -48,8 +64,8 @@ def load(identifier):
     # Read the deployment
     return Deployment(id=identifier, path=os.path.join(OUTPUT, identifier), **database[identifier])
 
-
-def format(template, deployment):
+@future
+def evaluate(command, deployment, check=True):
     # Create deployment dict with escaped parameters
     parameters = {
         # Escape using JSON module
@@ -58,30 +74,11 @@ def format(template, deployment):
         for name, value in deployment._asdict().items()
     }
 
-    # Format with parameters
-    return template.format(**parameters)
+    # Execute command and return output
+    stdout, _ = execute("( %s ) 2>&1" % command.format(**parameters), check=check)
 
-def action(name, token, setup=True):
-    # Parse token object and get ID
-    token = Token.validate(token, name)
-
-    # Load the deployment
-    deployment = load(token.contents["id"])
-
-    # Make sure the deployment was set-up
-    assert deployment.repository, "Deployment repository was not set"
-    assert deployment.directory, "Deployment directory was not set"
-
-    # Check if repository is set-up
-    exists = os.path.exists(os.path.join(deployment.path, REPOSITORY))
-
-    # Make sure setup requirements are met
-    if setup:
-        assert exists, "Deployment repository is not initialized"
-    else:
-        assert not exists, "Deployment repository is already initialized"
-
-    # Execute and evaluate TODO
+    # Return the output
+    return stdout
 
 @router.post("list")
 @kwargcheck(password=PasswordType)
@@ -104,8 +101,8 @@ def _new(request, password=None):
     deployment = load(identifier)
 
     # Create directory and SSH access key
-    execute(format(MKDIR_COMMAND, deployment))
-    execute(format(KEY_COMMAND, deployment))
+    ~evaluate(MKDIR_COMMAND, deployment)
+    ~evaluate(KEY_COMMAND, deployment)
 
     # Return the new ID
     return identifier
@@ -165,10 +162,10 @@ def _delete(request, password=None, identifier=None):
     # Check if repository was cloned
     if os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)):
         # Destroy the deployment
-        execute(format(DESTROY_COMMAND, deployment), check=False)
+        ~evaluate(DESTROY_COMMAND, deployment, check=False)
 
     # Delete the directory
-    execute(format(RMDIR_COMMAND, deployment), check=False)
+    ~evaluate(RMDIR_COMMAND, deployment, check=False)
 
     # Remove from the database
     database = Data.read()
@@ -179,7 +176,61 @@ def _delete(request, password=None, identifier=None):
 @router.post("clone")
 @kwargcheck(token=TokenType)
 def _clone(request, token=None):
-    pass
+    # Parse token object and get ID
+    token = Token.validate(token, name)
+
+    # Load the deployment
+    deployment = load(token.contents["id"])
+
+    # Make sure the deployment was set-up
+    assert deployment.repository, "Deployment repository was not set"
+    assert deployment.directory, "Deployment directory was not set"
+
+    # Check if repository is set-up
+    assert not os.path.exists(os.path.join(deployment.path, REPOSITORY)), "Deployment repository is already set-up"
+
+    # Format command and execute it
+    return ~evaluate(CLONE_COMMAND, deployment)
 
 
+@router.post("webhook")
+@kwargcheck(token=TokenType)
+def _webhook(request, token=None):
+    # Parse token object and get ID
+    token = Token.validate(token, name)
+
+    # Load the deployment
+    deployment = load(token.contents["id"])
+
+    # Make sure the deployment was set-up
+    assert deployment.repository, "Deployment repository was not set"
+    assert deployment.directory, "Deployment directory was not set"
+
+    # Check if repository is set-up
+    assert not os.path.exists(os.path.join(deployment.path, REPOSITORY)), "Deployment repository is already set-up"
+
+    # Format command and execute it
+    evaluate(WEBHOOK_COMMAND, deployment)
+
+
+# Create generic command execution actions
+for name, command in ACTIONS.items():
+    @router.post(name)
+    @kwargcheck(token=TokenType)
+    def _action(request, token=None):
+        # Parse token object and get ID
+        token = Token.validate(token, name)
+
+        # Load the deployment
+        deployment = load(token.contents["id"])
+
+        # Make sure the deployment was set-up
+        assert deployment.repository, "Deployment repository was not set"
+        assert deployment.directory, "Deployment directory was not set"
+
+        # Check if repository is set-up
+        assert os.path.exists(os.path.join(deployment.path, REPOSITORY)), "Deployment repository is not initialized"
+
+        # Format command and execute it
+        return ~evaluate(command, deployment)
 # yapf -ir . --style "{based_on_style: google, column_limit: 400, indent_width: 4}"
