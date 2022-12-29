@@ -160,7 +160,7 @@ def _delete(request, password=None, identifier=None):
     deployment = load(identifier)
 
     # Check if repository was cloned
-    if os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)):
+    if os.path.exists(os.path.join(deployment.path, REPOSITORY)):
         # Destroy the deployment
         ~evaluate(DESTROY_COMMAND, deployment, check=False)
 
