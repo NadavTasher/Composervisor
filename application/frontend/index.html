@@ -256,7 +256,7 @@
 				};
 
 				// Add event listeners to the controls
-				for (const action of ["start", "stop", "update", "clone", "reset"]) {
+				for (const action of ["start", "stop", "restart", "update", "clone", "reset"]) {
 					UI.find(`deployment-${action}`).onclick = async () => {
 						try {
 							// Prompt the user to confirm
@@ -329,8 +329,8 @@
 
 							// Check if result exists and needs to be displayed
 							if (result) {
-								// Show result
-								await Alert.dialog(`${window.location.href}api/action/webhook/?token=${encodeURIComponent(result)}`);
+								// Display link with token
+								await Alert.dialog(`${window.location.href}api/webhook?token=${encodeURIComponent(result.pop())}`);
 							} else {
 								// Reload the page
 								location.reload();
@@ -399,7 +399,10 @@
 			</div>
 			<!-- Deployment log -->
 			<div coasted>
-				<p tiny left>Log</p>
+				<div row>
+					<p tiny left stretched>Log</p>
+					<p tiny pointer maximized id="deployment-refresh" >Refresh</p>
+				</div>
 				<textarea input tiny left id="deployment-log" readonly></textarea>
 			</div>
 			<!-- Deployment control buttons -->
@@ -407,7 +410,7 @@
 				<p tiny left>Controls</p>
 				<div row stretch>
 					<button small center id="deployment-start">Start</button>
-					<button small center id="deployment-refresh">Refresh</button>
+					<button small center id="deployment-restart">Restart</button>
 					<button small center id="deployment-stop">Stop</button>
 				</div>
 				<div row stretch>

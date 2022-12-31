@@ -1,115 +1,86 @@
 import os
 import sys
 import json
+import bunch
 import logging
 import binascii
-import collections
 
 from router import router
 
+from database import *
 from constants import *
-from database import Database
 
 from puppy.process import execute
 from puppy.filesystem import remove
-from puppy.thread.future import future
+from puppy.token.authority import Authority
 from puppy.typing.check import validate, kwargcheck
 from puppy.typing.types import Text, Union, Optional
-from puppy.token.authority import Authority
+from puppy.thread.future import future
 
+# Initialize database and token generator
 Data = Database("/opt/database.json")
 Token = Authority(os.environ.get("SECRET").encode())
-Deployment = collections.namedtuple("Deployment", ["id", "path", "name", "directory", "repository"])
 
-ACTIONS = {
-    # Management actions
-    "pull": (PULL_COMMAND, True, False),
-    "clone": (CLONE_COMMAND, False, False),
-    "update": (UPDATE_COMMAND, True, False),
-    "destroy": (DESTROY_COMMAND, True, False),
-    # State actions
-    "stop": (STOP_COMMAND, True, False),
-    "start": (START_COMMAND, True, False),
-    "reset": (RESET_COMMAND, True, False),
-    "restart": (RESTART_COMMAND, True, False),
-    # Status actions
-    "log": (LOG_COMMAND, True, False),
-    "status": (STATUS_COMMAND, True, False),
-    # Webhook action
-    "webhook": (WEBHOOK_COMMAND, True, True)
-}
 
 def TokenType(token):
     validate(token, Text)
-
-    # Validate the token
     Token.validate(token)
 
 
 def PasswordType(password):
     validate(password, Text)
-
-    # Make sure password is valid
     assert password == os.environ.get("PASSWORD"), "Password is invalid!"
 
 
 def DeploymentType(identifier):
     validate(identifier, Text)
-
-    # Make sure ID exists in database
-    database = Data.read()
-    assert identifier in database.keys(), "Invalid deployment ID"
+    assert identifier in Data.read().keys(), "Invalid deployment ID"
 
 
-def load(identifier):
-    # Read the database
-    database = Data.read(identifier)
+@future
+def evaluate(command, identifier=None, **parameters):
+    # Escape parameters for execution
+    escaped_parameters = {
+        # Escape using JSON module
+        name: json.dumps(value)[1:-1]
+        # Loop over key-value in dict of deployment
+        for name, value in parameters.items()
+    }
 
-    # Read the deployment
-    return Deployment(id=identifier, path=os.path.join(OUTPUT, identifier), **database[identifier])
+    # Render command with parameters
+    rendered_command = command.format(identifier=identifier, **escaped_parameters)
+
+    # Change CWD of execution
+    cwd_command = f"cd {OUTPUT}; cd {identifier}; %s" % rendered_command
+
+    # Execute command and return output
+    return execute(cwd_command)
 
 
 def register(action, command, setup, asyncronous):
 
     @router.post(action)
     @kwargcheck(token=TokenType)
-    def _action(request, token):
+    def _action(request, token, **ignored):
         # Parse token object and get ID
-        token = Token.validate(token, action)
+        identifier = bunch.Bunch(Token.validate(token, action).contents).id
 
         # Load the deployment
-        deployment = load(token.contents["id"])
+        deployment = Data.get(identifier)
 
         # Make sure the deployment was set-up
         assert deployment.repository, "Deployment repository was not set"
         assert deployment.directory, "Deployment directory was not set"
 
-        # Check if repository is set-up
-        exists = os.path.exists(os.path.join(OUTPUT, deployment.id, REPOSITORY))
-
         # Make sure setup requirements are met
-        assert setup == exists, "Deployment repository setup requirements not met"
+        assert os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)) == setup, "Deployment repository setup requirements not met"
 
         # Format command and execute it
-        execution = evaluate(command, deployment)
+        execution = evaluate(command, identifier, **deployment)
 
         # Check if should skip result
         if not asyncronous:
             return (~execution).decode()
-
-
-@future
-def evaluate(command, deployment, check=True):
-    # Create deployment dict with escaped parameters
-    parameters = {
-        # Escape using JSON module
-        name: json.dumps(value)[1:-1]
-        # Loop over key-value in dict of deployment
-        for name, value in deployment._asdict().items()
-    }
-
-    # Execute command and return output
-    return execute(f"cd {OUTPUT}; cd {deployment.id}; %s" % command.format(**parameters), check=check)
 
 
 @router.post("list")
@@ -128,28 +99,28 @@ def _info(request, password, identifier):
     # Create temporary access token
     token, _ = Token.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
 
-    # Fetch general information about deployment
-    deployment = load(identifier)
-
     # Return all information
-    return dict(key=key.decode(), token=token.decode(), **deployment._asdict())
+    return dict(key=key.decode(), token=token.decode(), **Data.get(identifier))
 
 
 @router.post("token")
 @kwargcheck(password=PasswordType, identifier=DeploymentType)
 def _token(request, password, identifier):
-    # Issue token with limited permissions
-    token, _ = Token.issue("Permenant access token for %s" % identifier, dict(id=identifier), [
+    # Issue token with general permissions
+    general, _ = Token.issue("General token", dict(id=identifier), [
+        "log",
         "pull",
         "stop",
         "start",
         "update",
         "restart",
-        "webhook",
     ], 10 * 60 * 60 * 24 * 365)
 
-    # Return the created token
-    return token.decode()
+    # Issue token with webhook permission
+    webhook, _ = Token.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
+
+    # Return the created tokens
+    return (general.decode(), webhook.decode())
 
 
 @router.post("new")
@@ -159,18 +130,13 @@ def _new(request, password):
     identifier = binascii.b2a_hex(os.urandom(4)).decode()
 
     # Update database with new deployment
-    database = Data.read()
-    database[identifier] = dict(name=None, directory=None, repository=None)
-    Data.write(database)
-
-    # Fetch the deployment object
-    deployment = load(identifier)
+    Data.set(identifier, dict(name=None, directory=None, repository=None))
 
     # Create directory for deployment
     os.makedirs(os.path.join(OUTPUT, identifier))
-    
+
     # Create SSH access key for deployment
-    ~evaluate(KEY_COMMAND, deployment)
+    ~evaluate(KEY_COMMAND, identifier)
 
     # Return the new ID
     return identifier
@@ -179,32 +145,25 @@ def _new(request, password):
 @router.post("edit")
 @kwargcheck(password=PasswordType, identifier=DeploymentType, name=Text, directory=Text, repository=Text)
 def _edit(request, password, identifier, name, directory, repository):
-    # Read database and update deployment
-    database = Data.read()
-    database[identifier] = dict(name=name, directory=directory, repository=repository)
-
-    # Write the database
-    Data.write(database)
+    Data.set(identifier, dict(name=name, directory=directory, repository=repository))
 
 
 @router.post("delete")
 @kwargcheck(password=PasswordType, identifier=DeploymentType)
 def _delete(request, password, identifier):
-    # Load deployment from database
-    deployment = load(identifier)
-
     # Check if repository was cloned
-    if os.path.exists(os.path.join(deployment.path, REPOSITORY)):
+    if os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)):
         # Destroy the deployment
-        ~evaluate(DESTROY_COMMAND, deployment, check=False)
+        try:
+            ~evaluate(DESTROY_COMMAND, identifier, **Data.get(identifier))
+        except:
+            pass
 
     # Delete the directory
     remove(os.path.join(OUTPUT, identifier))
 
     # Remove from the database
-    database = Data.read()
-    database.pop(identifier)
-    Data.write(database)
+    Data.remove(identifier)
 
 
 for name, (command, setup, asyncronous) in ACTIONS.items():
