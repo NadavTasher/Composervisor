@@ -5,4 +5,4 @@ Host *
     
     # Settings for SSH keys
     HostKeyAlgorithms +ssh-rsa
-    PubkeyAcceptedAlgorithms +ssh-rsa
+    PubkeyAcceptedKeyTypes +ssh-rsa

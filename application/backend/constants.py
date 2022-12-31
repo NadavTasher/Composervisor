@@ -11,12 +11,9 @@ TIMEOUT = 3
 REPOSITORY = f'repository'
 
 # General commands
-MKDIR_COMMAND = f'mkdir -p "{{path}}"'
-RMDIR_COMMAND = f'rm -rf "{{path}}"'
-CD_COMMAND = f'cd "{{path}}"'
-KEY_COMMAND = f'ssh-keygen -t rsa -b 4096 -f "{{path}}/{PRIVATE}" -N "" -C "Deployment key for {{id}}"'
-GIT_COMMAND = f'{CD_COMMAND}; git -c core.sshCommand="ssh -i {{path}}/{PRIVATE}"'
-COMPOSE_COMMAND = f'{CD_COMMAND}; docker-compose --project-name "{{id}}" --project-directory "{REPOSITORY}/{{directory}}"'
+KEY_COMMAND = f'ssh-keygen -t rsa -b 4096 -f {PRIVATE} -N "" -C "Deployment key for {{id}}"'
+GIT_COMMAND = f'git -c core.sshCommand="ssh -i {PRIVATE}"'
+COMPOSE_COMMAND = f'cd {REPOSITORY}; docker-compose --project-name "{{id}}" --project-directory "{{directory}}"'
 
 # Deployment status commands
 LOG_COMMAND = f'{COMPOSE_COMMAND} logs --no-color --timestamps --tail {TAIL}'
