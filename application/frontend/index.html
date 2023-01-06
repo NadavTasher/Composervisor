@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-    Copyright (c) 2022 Nadav Tasher
+    Copyright (c) 2023 Nadav Tasher
     https://github.com/Webhood/Template/
 -->
 <html row stretch lang="en">
@@ -86,6 +86,12 @@
 				// Load the modules
 				await Module.load("API", "UI", "GUI");
 
+				// Load the page
+				await checkPassword();
+				await loadDashboard();
+			});
+
+			async function checkPassword() {
 				// Make sure password exists
 				if (!localStorage.password) {
 					// Read password from prompt
@@ -108,6 +114,115 @@
 						location.reload();
 					}
 				}
+			}
+
+			async function loadStatus(element, identifier) {
+				// Find status element
+				const status = element.find("status");
+
+				// Fetch infomration about deployment
+				try {
+					// Fetch token for deployment
+					const result = await API.call("info", {
+						identifier: identifier,
+						password: localStorage.password,
+					});
+
+					// Fetch status of deployment
+					const output = await API.call("status", {
+						token: result.token,
+					});
+
+					// Check if status has length
+					if (output.length === 0) throw new Error();
+
+					// Update status
+					status.style.color = "green";
+					UI.write(status, "Deployment is running");
+				} catch (error) {
+					// Update status
+					status.style.color = "red";
+					UI.write(status, "Deployment is not running");
+				}
+			}
+
+			async function loadSettings(identifier) {
+				// Start progress screen
+				const close = Progress.screen("Loading settings...");
+
+				// Fetch deployment details
+				const deployment = await API.call("info", {
+					identifier: identifier,
+					password: localStorage.password,
+				});
+
+				// Add data to the editor
+				UI.write("settings-key", deployment.key || "Missing SSH Key");
+				UI.write("settings-name", deployment.name || `Unnamed deployment - ${identifier}`);
+				UI.write("settings-directory", deployment.directory || ".");
+				UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
+
+				// Add event listeners to the buttons
+				for (const action of ["edit", "token", "delete"]) {
+					UI.find(`settings-${action}`).onclick = async () => {
+						try {
+							// Prompt the user to confirm
+							if (action === "delete") {
+								// Wait for prompt
+								const answer = await Prompt.dialog(`Do you want to ${action} the deployment?`, `Enter 'yes' to ${action}`);
+
+								// Check answer and compare it
+								if (answer.toLowerCase() !== "yes")
+									// Throw error for cancellation
+									throw new Error("User cancelled the action");
+							}
+
+							// Create the parmeters
+							let parameters = {
+								identifier: identifier,
+								password: localStorage.password,
+							};
+
+							// Add editing paremeters
+							if (action === "edit") {
+								parameters = {
+									...parameters,
+									deployment: {
+										name: UI.read("settings-name"),
+										directory: UI.read("settings-directory"),
+										repository: UI.read("settings-repository"),
+									},
+								};
+							}
+
+							// Execute action
+							const result = await Progress.drawer("Executing action...", API.call(action, parameters));
+
+							// Check if result exists and needs to be displayed
+							if (result) {
+								// Display link with token
+								await Alert.dialog(`${window.location.href}api/webhook?token=${encodeURIComponent(result.pop())}`);
+							} else {
+								// Reload the page
+								location.reload();
+							}
+						} catch (error) {
+							// Show error dialog
+							await Alert.dialog(error || "An error has occurred");
+						}
+					};
+				}
+
+				// Close the loading screen
+				close();
+
+				// Change view
+				UI.view("settings");
+			}
+
+			async function loadDashboard() {
+				// Start progress screen
+				const close = Progress.screen("Loading dashboard...");
 
 				// Add action listeners to the buttons
 				UI.find("dashboard-new").onclick = async () => {
@@ -120,20 +235,9 @@
 					);
 
 					// Redirect to editing page
-					await Progress.screen("Loading settings...", loadSettings(identifier));
-
-					// Change view
-					UI.view("settings");
+					await loadSettings(identifier);
 				};
 
-				// Load the dashboard
-				await Progress.screen("Loading dashboard...", loadDashboard());
-
-				// Show the dashboard
-				UI.show("dashboard");
-			});
-
-			async function loadDashboard() {
 				// Get list of deployments
 				const deployments = await API.call("list", {
 					password: localStorage.password,
@@ -155,65 +259,31 @@
 						name: deployment.name,
 					});
 
-					// Find status element
-					const status = element.find("status");
-
-					// Fetch infomration about deployment
-					(async () => {
-						try {
-							// Fetch token for deployment
-							const result = await API.call("info", {
-								identifier: identifier,
-								password: localStorage.password,
-							});
-
-							// Fetch status of deployment
-							const output = await API.call("status", {
-								token: result.token,
-							});
-
-							// Check if status has length
-							if (output.length === 0) throw new Error("Deployment is not running");
-
-							// Set the color
-							status.style.color = "green";
-
-							// Set the text
-							UI.write(status, "Deployment is running");
-						} catch (error) {
-							// Set the color
-							status.style.color = "red";
-
-							// Set the text
-							UI.write(status, "Deployment is not running");
-						}
-					})();
-
 					// Add event listeners to the buttons
-					element.find("deployment").addEventListener("click", async () => {
-						// Redirect to deployment page
-						await Progress.drawer("Loading deployment...", loadDeployment(identifier));
-
-						// Change view
-						UI.view("deployment");
-					});
-					element.find("settings").addEventListener("click", async () => {
-						// Redirect to editing page
-						await Progress.drawer("Loading settings...", loadSettings(identifier));
-
-						// Change view
-						UI.view("settings");
-					});
+					element.find("settings").addEventListener("click", () => loadSettings(identifier));
+					element.find("deployment").addEventListener("click", () => loadDeployment(identifier));
 
 					// Add item to the list
 					UI.find("dashboard-list").appendChild(element);
+
+					// Load status asynchronously
+					loadStatus(element, identifier);
 				}
 
 				// Write the summary
 				UI.write("dashboard-summary", `${Object.keys(deployments).length} managed deployments`);
+
+				// Close the progress screen
+				close();
+
+				// Show the dashboard
+				UI.show("dashboard");
 			}
 
 			async function loadDeployment(identifier) {
+				// Start progress screen
+				const close = Progress.screen("Loading deployment...");
+
 				// Fetch deployment details
 				const deployment = await API.call("info", {
 					identifier: identifier,
@@ -230,23 +300,19 @@
 					});
 
 					// Check if the status is not empty
-					if (status.length === 0) throw new Error("Status is empty");
+					if (status.length === 0) throw new Error();
 
 					// Fetch the log of the deployment
 					const log = await API.call("log", {
 						token: deployment.token,
 					});
 
-					// Update the log
+					// Update log and status
 					UI.write("deployment-log", log);
-
-					// Set the status message
 					UI.write("deployment-status", "Deployment is running");
 				} catch (error) {
-					// Update the log
+					// Update log and status
 					UI.write("deployment-log", "No deployment log");
-
-					// Set the status message
 					UI.write("deployment-status", "Deployment is not running");
 				}
 
@@ -261,7 +327,11 @@
 						try {
 							// Prompt the user to confirm
 							if (action === "reset") {
-								if ((await Prompt.dialog(`Do you want to ${action} the deployment?`, `Enter 'yes' to ${action}`)).toLowerCase() !== "yes")
+								// Wait for prompt
+								const answer = await Prompt.dialog(`Do you want to ${action} the deployment?`, `Enter 'yes' to ${action}`);
+
+								// Check answer and compare it
+								if (answer.toLowerCase() !== "yes")
 									// Throw error for cancellation
 									throw new Error("User cancelled the action");
 							}
@@ -275,72 +345,19 @@
 							);
 
 							// Reload the viewer
-							await Progress.drawer("Refreshing deployment...", loadDeployment(identifier));
+							await loadDeployment(identifier);
 						} catch (error) {
 							// Show error dialog
-							await Alert.dialog(error);
+							await Alert.dialog(error || "An error has occurred");
 						}
 					};
 				}
-			}
 
-			async function loadSettings(identifier) {
-				// Fetch deployment details
-				const deployment = await API.call("info", {
-					identifier: identifier,
-					password: localStorage.password,
-				});
+				// Close the loading screen
+				close();
 
-				// Add data to the editor
-				UI.write("settings-key", deployment.key || "Missing SSH Key");
-				UI.write("settings-name", deployment.name || `Unnamed deployment - ${identifier}`);
-				UI.write("settings-directory", deployment.directory || ".");
-				UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
-
-				// Add event listeners to the buttons
-				for (const action of ["edit", "token", "delete"]) {
-					UI.find(`settings-${action}`).onclick = async () => {
-						try {
-							// Prompt the user to confirm
-							if (action === "delete") {
-								if ((await Prompt.dialog(`Do you want to ${action} the deployment?`, `Enter 'yes' to ${action}`)).toLowerCase() !== "yes")
-									// Throw error for cancellation
-									throw new Error("User cancelled the action");
-							}
-
-							// Create the parmeters
-							let parameters = {
-								identifier: identifier,
-								password: localStorage.password,
-							};
-
-							// Add editing paremeters
-							if (action === "edit") {
-								parameters = {
-                                    ...parameters,
-									name: UI.read("settings-name"),
-									directory: UI.read("settings-directory"),
-									repository: UI.read("settings-repository"),
-								};
-							}
-
-							// Execute action
-							const result = await Progress.drawer("Executing action...", API.call(action, parameters));
-
-							// Check if result exists and needs to be displayed
-							if (result) {
-								// Display link with token
-								await Alert.dialog(`${window.location.href}api/webhook?token=${encodeURIComponent(result.pop())}`);
-							} else {
-								// Reload the page
-								location.reload();
-							}
-						} catch (error) {
-							// Show error dialog
-							await Alert.dialog(error);
-						}
-					};
-				}
+				// Change view
+				UI.view("deployment");
 			}
 		</script>
 
@@ -401,7 +418,7 @@
 			<div coasted>
 				<div row>
 					<p tiny left stretched>Log</p>
-					<p tiny pointer maximized id="deployment-refresh" >Refresh</p>
+					<p tiny pointer maximized id="deployment-refresh">Refresh</p>
 				</div>
 				<textarea input tiny left id="deployment-log" readonly></textarea>
 			</div>

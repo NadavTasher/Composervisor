@@ -169,13 +169,13 @@ def _new(request, password):
 
 
 @router.post("edit")
-@kwargcheck(password=PasswordType, identifier=DeploymentType, name=Text, directory=Text, repository=Text)
-def _edit(request, password, identifier, name, directory, repository):
+@kwargcheck(password=PasswordType, identifier=DeploymentType, deployment=dict(name=Text, directory=Text, repository=Text))
+def _edit(request, password, identifier, deployment):
     """
     Edits an existing deployment
     """
 
-    Data.set(identifier, dict(name=name, directory=directory, repository=repository))
+    Data.set(identifier, deployment)
 
 
 @router.post("delete")
