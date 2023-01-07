@@ -104,6 +104,7 @@ def _list(request, password):
     # Create a dictionary with ID->Name of deployments
     return {identifier: deployment["name"] for identifier, deployment in data.items()}
 
+
 @router.post("new")
 @kwargcheck(password=PasswordType)
 def _new(request, password):
@@ -126,6 +127,7 @@ def _new(request, password):
     # Return the new ID
     return identifier
 
+
 @router.post("info")
 @kwargcheck(token=TokenType)
 def _info(request, token):
@@ -139,15 +141,17 @@ def _info(request, token):
     # Load the deployment
     return Data.get(identifier)
 
+
 @router.post("key")
 @kwargcheck(password=PasswordType, identifier=DeploymentType)
 def _key(request, password, identifier):
     # Read deployment SSH key
     with open(os.path.join(OUTPUT, identifier, PUBLIC), "rb") as key_file:
         key = key_file.read()
-    
+
     # Return decoded key
     return key.decode()
+
 
 @router.post("access")
 @kwargcheck(password=PasswordType, identifier=DeploymentType)
