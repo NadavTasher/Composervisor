@@ -155,8 +155,16 @@
 
 							// Check if result exists and needs to be displayed
 							if (result) {
-								// Display link with token
-								await Alert.dialog(`${window.location.origin}/api/webhook?token=${encodeURIComponent(result.webhook)}`);
+								if (action === "token") {
+									// Create links to display
+									const links = [`${window.location.origin}/deployment?token=${encodeURIComponent(result.general)}`, `${window.location.origin}/api/webhook?token=${encodeURIComponent(result.webhook)}`];
+	
+									// Display links in dialog
+									await Alert.dialog(links.join("\n"));
+								} else {
+									// Display result in dialog
+									await Alert.dialog(result);
+								}
 							} else {
 								// Go to dashboard
 								window.location.href = "/";

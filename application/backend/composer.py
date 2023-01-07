@@ -173,11 +173,12 @@ def _token(request, password, identifier):
     """
 
     # Issue token with general permissions
-    general, _ = Token.issue("General token", dict(id=identifier), [
+    general, _ = Token.issue(str(), dict(id=identifier), [
         "log",
         "pull",
         "stop",
         "start",
+        "status",
         "update",
         "restart",
     ], 10 * 60 * 60 * 24 * 365)
