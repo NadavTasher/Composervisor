@@ -86,19 +86,19 @@
 				// Load the modules
 				await Module.load("API", "UI", "GUI");
 
-				// Make sure password is set
-				await checkPassword();
+				// Check query parameters
+				const parameters = new URLSearchParams(window.location.search);
 
 				// Load the page
-				await load();
+				await load(parameters.get("token"));
 
 				// Show the page
-				UI.show("dashboard");
+				UI.show("deployment");
 			});
 
-			async function load() {
+			async function load(token) {
 				try {
-					await Progress.screen("Loading dashboard...", loadDashboard());
+					await Progress.screen("Loading deployment...", loadDeployment(token));
 				} catch (error) {
 					// Display the error
 					await Alert.dialog(error);
@@ -108,104 +108,60 @@
 				}
 			}
 
-			async function loadDashboard() {
-				// Add action listeners to the buttons
-				UI.find("dashboard-new").onclick = async () => {
-					// Create new deployment and display editing page
-					const identifier = await Progress.screen(
-						"Creating new deployment...",
-						API.call("new", {
-							password: localStorage.password,
-						})
-					);
+			async function loadDeployment(token) {
+				// Fetch deployment details
+				const deployment = await API.call("info", { token });
 
-					// Go to settings
-					window.location.href = `/settings?identifier=${encodeURIComponent(identifier)}`;
-				};
-
-				// Get list of deployments
-				const deployments = await API.call("list", {
-					password: localStorage.password,
-				});
-
-				// Clear list of deployments
-				UI.clear("dashboard-list");
-
-				// Sort deployment entries by name
-				const entries = Object.entries(deployments).sort(([a, A], [b, B]) => {
-					// Compare deployment names
-					return String(A.name).localeCompare(String(B.name));
-				});
-
-				// Add deployments to the list
-				for (const [identifier, deployment] of entries) {
-					// Create deployment element from template
-					const element = UI.populate("dashboard-deployment", deployment);
-
-					// Add item to the list
-					UI.find("dashboard-list").appendChild(element);
-
-					// Load status asynchronously
-					loadDeployment(element, identifier);
-				}
-
-				// Write the summary
-				UI.write("dashboard-summary", `${Object.keys(deployments).length} managed deployments`);
-			}
-
-			async function loadDeployment(element, identifier) {
-				// Generate a temporary access token
-				const token = await API.call("temporary", {
-					identifier: identifier,
-					password: localStorage.password,
-				});
-
-				// Add event listeners to the buttons
-				element.find("settings").addEventListener("click", () => (window.location.href = `/settings?identifier=${encodeURIComponent(identifier)}`));
-				element.find("deployment").addEventListener("click", () => (window.location.href = `/deployment?token=${encodeURIComponent(token)}`));
-
-				// Find status element
-				const status = element.find("status");
+				// Add data to the editor
+				UI.write("deployment-name", deployment.name);
 
 				try {
-					// Fetch status of deployment
-					const output = await API.call("status", { token });
+					// Fetch the status of the deployment
+					const status = await API.call("status", { token });
 
-					// Check if status has length
-					if (output.length === 0) throw new Error();
+					// Check if the status is not empty
+					if (status.length === 0) throw new Error();
 
-					// Update status
-					status.style.color = "green";
-					UI.write(status, "Deployment is running");
+					// Fetch the log of the deployment
+					const log = await API.call("log", { token });
+
+					// Update log and status
+					UI.write("deployment-log", log);
+					UI.write("deployment-status", "Deployment is running");
 				} catch (error) {
-					// Update status
-					status.style.color = "red";
-					UI.write(status, "Deployment is not running");
+					// Update log and status
+					UI.write("deployment-log", "No deployment log");
+					UI.write("deployment-status", "Deployment is not running");
 				}
-			}
 
-			async function checkPassword() {
-				// Make sure password exists
-				if (!localStorage.password) {
-					// Read password from prompt
-					const password = await Prompt.dialog("Please enter your password", "Password");
+				// Add event listener to the refresh button
+				UI.find("deployment-refresh").onclick = () => load(token);
 
-					// Check password
-					try {
-						// Make a simple API call
-						await API.call("list", {
-							password: password,
-						});
+				// Add event listeners to the controls
+				for (const action of ["start", "stop", "restart", "update", "clone", "reset"]) {
+					UI.find(`deployment-${action}`).onclick = async () => {
+						try {
+							// Prompt the user to confirm
+							if (action === "reset") {
+								// Wait for prompt
+								const answer = await Prompt.dialog(`Do you want to ${action} the deployment?`, `Enter 'yes' to ${action}`);
 
-						// Save password
-						localStorage.password = password;
-					} catch (ignored) {
-						// Show error dialog
-						await Alert.dialog("Entered password is incorrect!");
+								// Check answer and compare it
+								if (answer.toLowerCase() !== "yes")
+									// Throw error for cancellation
+									throw new Error("User cancelled the action");
+							}
 
-						// Reload page
-						location.reload();
-					}
+							// Execute action
+							await Progress.drawer("Executing action...", API.call(action, { token }));
+
+							// Reload the viewer
+							await load(token);
+						} catch (error) {
+							// Show error dialog
+							await Alert.dialog(error || "An error has occurred");
+						}
+					};
 				}
 			}
 		</script>
@@ -215,38 +171,44 @@
 
 		<!-- No Script -->
 		<noscript></noscript>
-
-		<!-- Additional -->
-		<template id="dashboard-deployment">
-			<div coasted>
-				<!-- Deployment title -->
-				<p medium left>${name}</p>
-				<!-- Deployment status -->
-				<p small left name="status">Loading status...</p>
-				<!-- Deployment controls -->
-				<div row stretch>
-					<p small left pointer name="deployment">Deployment</p>
-					<p small right pointer name="settings">Settings</p>
-				</div>
-			</div>
-		</template>
 	</head>
 
 	<body column>
-		<div id="dashboard" hidden>
+		<div id="deployment" hidden>
 			<!-- Page title -->
-			<p huge left>Dashboard</p>
-			<!-- Deployments summary -->
+			<p huge left>Deployment</p>
+			<!-- Deployment name -->
 			<div coasted>
-				<p tiny left>Summary</p>
-				<!-- Dashboard summary and controls -->
+				<p tiny left>Name</p>
+				<p small left id="deployment-name">Loading name...</p>
+			</div>
+			<!-- Deployment status -->
+			<div coasted>
+				<p tiny left>Status</p>
+				<p small left id="deployment-status">Loading status...</p>
+			</div>
+			<!-- Deployment log -->
+			<div coasted>
+				<div row>
+					<p tiny left stretched>Log</p>
+					<p tiny pointer maximized id="deployment-refresh">Refresh</p>
+				</div>
+				<textarea input tiny left id="deployment-log" readonly></textarea>
+			</div>
+			<!-- Deployment control buttons -->
+			<div coasted>
+				<p tiny left>Controls</p>
 				<div row stretch>
-					<p small left id="dashboard-summary">Loading summary...</p>
-					<p small right pointer id="dashboard-new">New deployment</p>
+					<button small center id="deployment-start">Start</button>
+					<button small center id="deployment-restart">Restart</button>
+					<button small center id="deployment-stop">Stop</button>
+				</div>
+				<div row stretch>
+					<button small center id="deployment-update">Update</button>
+					<button small center id="deployment-clone">Clone</button>
+					<button small center id="deployment-reset">Reset</button>
 				</div>
 			</div>
-			<!-- Deployments list, generated dynamically -->
-			<div id="dashboard-list"></div>
 		</div>
 	</body>
 </html>

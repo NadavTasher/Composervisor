@@ -89,16 +89,19 @@
 				// Make sure password is set
 				await checkPassword();
 
+				// Check query parameters
+				const parameters = new URLSearchParams(window.location.search);
+
 				// Load the page
-				await load();
+				await load(parameters.get("identifier"));
 
 				// Show the page
-				UI.show("dashboard");
+				UI.show("settings");
 			});
 
-			async function load() {
+			async function load(identifier) {
 				try {
-					await Progress.screen("Loading dashboard...", loadDashboard());
+					await Progress.screen("Loading settings...", loadSettings(identifier));
 				} catch (error) {
 					// Display the error
 					await Alert.dialog(error);
@@ -108,79 +111,66 @@
 				}
 			}
 
-			async function loadDashboard() {
-				// Add action listeners to the buttons
-				UI.find("dashboard-new").onclick = async () => {
-					// Create new deployment and display editing page
-					const identifier = await Progress.screen(
-						"Creating new deployment...",
-						API.call("new", {
-							password: localStorage.password,
-						})
-					);
-
-					// Go to settings
-					window.location.href = `/settings?identifier=${encodeURIComponent(identifier)}`;
-				};
-
-				// Get list of deployments
-				const deployments = await API.call("list", {
-					password: localStorage.password,
-				});
-
-				// Clear list of deployments
-				UI.clear("dashboard-list");
-
-				// Sort deployment entries by name
-				const entries = Object.entries(deployments).sort(([a, A], [b, B]) => {
-					// Compare deployment names
-					return String(A.name).localeCompare(String(B.name));
-				});
-
-				// Add deployments to the list
-				for (const [identifier, deployment] of entries) {
-					// Create deployment element from template
-					const element = UI.populate("dashboard-deployment", deployment);
-
-					// Add item to the list
-					UI.find("dashboard-list").appendChild(element);
-
-					// Load status asynchronously
-					loadDeployment(element, identifier);
-				}
-
-				// Write the summary
-				UI.write("dashboard-summary", `${Object.keys(deployments).length} managed deployments`);
-			}
-
-			async function loadDeployment(element, identifier) {
-				// Generate a temporary access token
+			async function loadSettings(identifier) {
+				// Fetch a new temporary access token
 				const token = await API.call("temporary", {
 					identifier: identifier,
 					password: localStorage.password,
 				});
 
+				// Fetch deployment details
+				const deployment = await API.call("info", { token });
+
+				// Add data to the editor
+				UI.write("settings-key", deployment.key || "Missing SSH Key");
+				UI.write("settings-name", deployment.name || `Unnamed deployment - ${identifier}`);
+				UI.write("settings-directory", deployment.directory || ".");
+				UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
+
 				// Add event listeners to the buttons
-				element.find("settings").addEventListener("click", () => (window.location.href = `/settings?identifier=${encodeURIComponent(identifier)}`));
-				element.find("deployment").addEventListener("click", () => (window.location.href = `/deployment?token=${encodeURIComponent(token)}`));
+				for (const action of ["edit", "token", "delete"]) {
+					UI.find(`settings-${action}`).onclick = async () => {
+						try {
+							// Create the parmeters
+							const parameters = {
+								identifier: identifier,
+								password: localStorage.password,
+							};
 
-				// Find status element
-				const status = element.find("status");
+							// Prompt the user to confirm
+							if (action === "delete") {
+								// Wait for prompt
+								const answer = await Prompt.dialog(`Do you want to ${action} the deployment?`, `Enter 'yes' to ${action}`);
 
-				try {
-					// Fetch status of deployment
-					const output = await API.call("status", { token });
+								// Check answer and compare it
+								if (answer.toLowerCase() !== "yes")
+									// Throw error for cancellation
+									throw new Error("User cancelled the action");
+							} else if (action === "edit") {
+								// Add editing parameters
+								parameters.deployment = {
+									name: UI.read("settings-name"),
+									directory: UI.read("settings-directory"),
+									repository: UI.read("settings-repository"),
+								};
+							}
 
-					// Check if status has length
-					if (output.length === 0) throw new Error();
+							// Execute action
+							const result = await Progress.drawer("Executing action...", API.call(action, parameters));
 
-					// Update status
-					status.style.color = "green";
-					UI.write(status, "Deployment is running");
-				} catch (error) {
-					// Update status
-					status.style.color = "red";
-					UI.write(status, "Deployment is not running");
+							// Check if result exists and needs to be displayed
+							if (result) {
+								// Display link with token
+								await Alert.dialog(`${window.location.origin}/api/webhook?token=${encodeURIComponent(result.webhook)}`);
+							} else {
+								// Go to dashboard
+								window.location.href = "/";
+							}
+						} catch (error) {
+							// Show error dialog
+							await Alert.dialog(error || "An error has occurred");
+						}
+					};
 				}
 			}
 
@@ -215,38 +205,41 @@
 
 		<!-- No Script -->
 		<noscript></noscript>
-
-		<!-- Additional -->
-		<template id="dashboard-deployment">
-			<div coasted>
-				<!-- Deployment title -->
-				<p medium left>${name}</p>
-				<!-- Deployment status -->
-				<p small left name="status">Loading status...</p>
-				<!-- Deployment controls -->
-				<div row stretch>
-					<p small left pointer name="deployment">Deployment</p>
-					<p small right pointer name="settings">Settings</p>
-				</div>
-			</div>
-		</template>
 	</head>
 
 	<body column>
-		<div id="dashboard" hidden>
+		<div id="settings" hidden>
 			<!-- Page title -->
-			<p huge left>Dashboard</p>
-			<!-- Deployments summary -->
+			<p huge left>Settings</p>
+			<!-- Deployment name -->
 			<div coasted>
-				<p tiny left>Summary</p>
-				<!-- Dashboard summary and controls -->
+				<p tiny left>Name</p>
+				<input small left id="settings-name" placeholder="Name (e.g. Home-control server)" />
+			</div>
+			<!-- Repository address -->
+			<div coasted>
+				<p tiny left>Git repository address</p>
+				<input small left id="settings-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
+			</div>
+			<!-- Docker-Compose directory path -->
+			<div coasted>
+				<p tiny left>Directory with docker-compose file</p>
+				<input small left id="settings-directory" placeholder="Directory (e.g. example/)" />
+			</div>
+			<!-- Public SSH key -->
+			<div coasted>
+				<p tiny left>Deploy key / Public SSH key</p>
+				<textarea input tiny left id="settings-key" readonly></textarea>
+			</div>
+			<!-- Editing control buttons -->
+			<div coasted>
+				<p tiny left>Controls</p>
 				<div row stretch>
-					<p small left id="dashboard-summary">Loading summary...</p>
-					<p small right pointer id="dashboard-new">New deployment</p>
+					<button small center id="settings-edit">Save</button>
+					<button small center id="settings-token">Token</button>
+					<button small center id="settings-delete">Delete</button>
 				</div>
 			</div>
-			<!-- Deployments list, generated dynamically -->
-			<div id="dashboard-list"></div>
 		</div>
 	</body>
 </html>

@@ -51,14 +51,14 @@ def evaluate(command, identifier=None, **parameters):
         for name, value in parameters.items()
     }
 
-    # Render command with parameters
-    rendered_command = command.format(identifier=identifier, **escaped_parameters)
+    # Add working directory to command
+    command = f"cd {DEPLOYMENT} && %s" % command
 
-    # Change CWD of execution
-    cwd_command = f"cd {OUTPUT} && cd {identifier} && %s" % rendered_command
+    # Render command with parameters
+    command = command.format(identifier=identifier, **escaped_parameters)
 
     # Execute command and return output
-    return execute(cwd_command)
+    return execute(command)
 
 
 def register(action, command, setup, asyncronous):
@@ -102,28 +102,45 @@ def _list(request, password):
 
 
 @router.post("info")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _info(request, password, identifier):
+@kwargcheck(token=TokenType)
+def _info(request, token):
     """
     Fetches extended information about a deployment
     """
+
+    # Parse token object and get ID
+    identifier = bunch.Bunch(Token.validate(token).contents).id
+
+    # Load the deployment
+    deployment = Data.get(identifier)
 
     # Read deployment SSH key
     with open(os.path.join(OUTPUT, identifier, PUBLIC), "rb") as key_file:
         key = key_file.read()
 
+    # Return all information
+    return dict(key=key.decode(), **deployment)
+
+
+@router.post("temporary")
+@kwargcheck(password=PasswordType, identifier=DeploymentType)
+def _temporary(request, password, identifier):
+    """
+    Generate a temporary access token for a deployment
+    """
+
     # Create temporary access token
     token, _ = Token.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
 
-    # Return all information
-    return dict(key=key.decode(), token=token.decode(), **Data.get(identifier))
+    # Return the created token
+    return token.decode()
 
 
-@router.post("token")
+@router.post("permanent")
 @kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _token(request, password, identifier):
+def _permanent(request, password, identifier):
     """
-    Generates two permenant access tokens
+    Generates two permanent access tokens
     1. General access token (log, update, restart, etc.)
     2. Webhook access token (Async restart)
     """
@@ -142,7 +159,7 @@ def _token(request, password, identifier):
     webhook, _ = Token.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
 
     # Return the created tokens
-    return (general.decode(), webhook.decode())
+    return dict(general=general.decode(), webhook=webhook.decode())
 
 
 @router.post("new")

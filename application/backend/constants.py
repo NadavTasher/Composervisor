@@ -1,5 +1,6 @@
 # Directory constants
 OUTPUT = f'/opt'
+DEPLOYMENT = f'{OUTPUT}/{{identifier}}'
 
 # SSH constants
 PRIVATE = f'key'
@@ -12,7 +13,7 @@ REPOSITORY = f'repository'
 
 # General commands
 KEY_COMMAND = f'ssh-keygen -t rsa -b 4096 -f {PRIVATE} -N "" -C "Deployment key for {{identifier}}"'
-GIT_COMMAND = f'git -c core.sshCommand="ssh -i {PRIVATE}"'
+GIT_COMMAND = f'git -c core.sshCommand="ssh -i {DEPLOYMENT}/{PRIVATE}"'
 COMPOSE_COMMAND = f'docker-compose --project-name "{{identifier}}" --project-directory "{REPOSITORY}/{{directory}}"'
 
 # Deployment status commands
