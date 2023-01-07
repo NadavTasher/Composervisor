@@ -13,16 +13,16 @@ REPOSITORY = f'repository'
 
 # General commands
 KEY_COMMAND = f'ssh-keygen -t rsa -b 4096 -f {PRIVATE} -N "" -C "Deployment key for {{identifier}}"'
-GIT_COMMAND = f'git -c core.sshCommand="ssh -i {DEPLOYMENT}/{PRIVATE}"'
-COMPOSE_COMMAND = f'docker-compose --project-name "{{identifier}}" --project-directory "{REPOSITORY}/{{directory}}"'
+GIT_COMMAND = f'git -c pull.rebase="false" -c core.sshCommand="ssh -i {DEPLOYMENT}/{PRIVATE}"'
+COMPOSE_COMMAND = f'docker-compose --ansi never --project-name "{{identifier}}" --project-directory "{REPOSITORY}/{{directory}}"'
 
 # Deployment status commands
-LOG_COMMAND = f'{COMPOSE_COMMAND} logs --no-color --timestamps --no-log-prefix --tail {TAIL}'
+LOG_COMMAND = f'{COMPOSE_COMMAND} logs --no-color --no-log-prefix --tail {TAIL}'
 STATUS_COMMAND = f'{COMPOSE_COMMAND} ps --quiet'
 
 # Deployment state commands
 STOP_COMMAND = f'{COMPOSE_COMMAND} down --remove-orphans --timeout {TIMEOUT}'
-START_COMMAND = f'{COMPOSE_COMMAND} up --detach'
+START_COMMAND = f'{COMPOSE_COMMAND} up --no-color --detach'
 RESTART_COMMAND = f'{STOP_COMMAND} && {START_COMMAND}'
 
 # Deployment destruction commands

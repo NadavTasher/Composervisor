@@ -1,10 +1,13 @@
 # Select the base image
 FROM webhood/3.8:2023.01.07
 
+# Install python dependencies
+RUN pip install bunch
+
 # Install some dependencies
 RUN apt update
 RUN apt install -yq git ssh docker.io
-RUN pip install docker-compose bunch
+RUN curl -SL "https://github.com/docker/compose/releases/download/v2.15.0/docker-compose-linux-$(uname -m)" -o /usr/bin/docker-compose && chmod +x /usr/bin/docker-compose
 
 # Copy SSH configuration
 COPY ssh/ssh_config /etc/ssh/ssh_config
