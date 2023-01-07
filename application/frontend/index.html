@@ -15,7 +15,7 @@
 		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=5, user-scalable=yes, minimal-ui" />
 
 		<!-- Mobile -->
-		<meta name="theme-color" content="#D0D0D0" />
+		<meta name="theme-color" content="#686868" />
 		<meta name="mobile-web-app-capable" content="yes" />
 
 		<!-- Mobile Safari -->
@@ -46,10 +46,10 @@
 		<!-- Application stylesheet -->
 		<style>
 			:root {
-				--text: #707070;
-				--theme: #d0d0d0;
-				--active: #cccccc;
-				--passive: #dddddd;
+				--text: #e7e7e7;
+				--theme: #686868;
+				--active: #626262;
+				--passive: #444444;
 			}
 
 			body {
@@ -161,7 +161,7 @@
 					if (output.length === 0) throw new Error();
 
 					// Update status
-					status.style.color = "green";
+					status.style.color = "lightgreen";
 					UI.write(status, "Deployment is running");
 				} catch (error) {
 					// Update status
