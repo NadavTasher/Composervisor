@@ -120,13 +120,13 @@
 				// Sort deployment entries by name
 				const entries = Object.entries(deployments).sort(([a, A], [b, B]) => {
 					// Compare deployment names
-					return String(A.name).localeCompare(String(B.name));
+					return String(A).localeCompare(String(B));
 				});
 
 				// Add deployments to the list
-				for (const [identifier, deployment] of entries) {
+				for (const [identifier, name] of entries) {
 					// Create deployment element from template
-					const element = UI.populate("dashboard-deployment", deployment);
+					const element = UI.populate("dashboard-deployment", { name });
 
 					// Add item to the list
 					UI.find("dashboard-list").appendChild(element);
@@ -141,7 +141,7 @@
 
 			async function loadDeployment(element, identifier) {
 				// Generate a temporary access token
-				const token = await API.call("temporary", {
+				const token = await API.call("access", {
 					identifier: identifier,
 					password: localStorage.password,
 				});

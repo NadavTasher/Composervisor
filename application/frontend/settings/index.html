@@ -102,16 +102,22 @@
 
 			async function loadSettings(identifier) {
 				// Fetch a new temporary access token
-				const token = await API.call("temporary", {
+				const token = await API.call("access", {
 					identifier: identifier,
 					password: localStorage.password,
 				});
 
-				// Fetch deployment details
+				// Fetch deployment key
+				const key = await API.call("key", {
+					identifier: identifier,
+					password: localStorage.password,
+				});
+
+				// Fetch deployment information
 				const deployment = await API.call("info", { token });
 
 				// Add data to the editor
-				UI.write("settings-key", deployment.key || "Missing SSH Key");
+				UI.write("settings-key", key || "Missing SSH Key");
 				UI.write("settings-name", deployment.name || `Unnamed deployment - ${identifier}`);
 				UI.write("settings-directory", deployment.directory || ".");
 				UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");

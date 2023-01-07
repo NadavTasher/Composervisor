@@ -98,69 +98,11 @@ def _list(request, password):
     Lists all deployment with configuration values
     """
 
-    return Data.read()
+    # Read complete database
+    data = Data.read()
 
-
-@router.post("info")
-@kwargcheck(token=TokenType)
-def _info(request, token):
-    """
-    Fetches extended information about a deployment
-    """
-
-    # Parse token object and get ID
-    identifier = bunch.Bunch(Token.validate(token).contents).id
-
-    # Load the deployment
-    deployment = Data.get(identifier)
-
-    # Read deployment SSH key
-    with open(os.path.join(OUTPUT, identifier, PUBLIC), "rb") as key_file:
-        key = key_file.read()
-
-    # Return all information
-    return dict(key=key.decode(), **deployment)
-
-
-@router.post("temporary")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _temporary(request, password, identifier):
-    """
-    Generate a temporary access token for a deployment
-    """
-
-    # Create temporary access token
-    token, _ = Token.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
-
-    # Return the created token
-    return token.decode()
-
-
-@router.post("permanent")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _permanent(request, password, identifier):
-    """
-    Generates two permanent access tokens
-    1. General access token (log, update, restart, etc.)
-    2. Webhook access token (Async restart)
-    """
-
-    # Issue token with general permissions
-    general, _ = Token.issue("General token", dict(id=identifier), [
-        "log",
-        "pull",
-        "stop",
-        "start",
-        "update",
-        "restart",
-    ], 10 * 60 * 60 * 24 * 365)
-
-    # Issue token with webhook permission
-    webhook, _ = Token.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
-
-    # Return the created tokens
-    return dict(general=general.decode(), webhook=webhook.decode())
-
+    # Create a dictionary with ID->Name of deployments
+    return {identifier: deployment["name"] for identifier, deployment in data.items()}
 
 @router.post("new")
 @kwargcheck(password=PasswordType)
@@ -183,6 +125,68 @@ def _new(request, password):
 
     # Return the new ID
     return identifier
+
+@router.post("info")
+@kwargcheck(token=TokenType)
+def _info(request, token):
+    """
+    Fetches extended information about a deployment
+    """
+
+    # Parse token object and get ID
+    identifier = bunch.Bunch(Token.validate(token).contents).id
+
+    # Load the deployment
+    return Data.get(identifier)
+
+@router.post("key")
+@kwargcheck(password=PasswordType, identifier=DeploymentType)
+def _key(request, password, identifier):
+    # Read deployment SSH key
+    with open(os.path.join(OUTPUT, identifier, PUBLIC), "rb") as key_file:
+        key = key_file.read()
+    
+    # Return decoded key
+    return key.decode()
+
+@router.post("access")
+@kwargcheck(password=PasswordType, identifier=DeploymentType)
+def _access(request, password, identifier):
+    """
+    Generate a temporary access token for a deployment
+    """
+
+    # Create temporary access token
+    token, _ = Token.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
+
+    # Return the created token
+    return token.decode()
+
+
+@router.post("token")
+@kwargcheck(password=PasswordType, identifier=DeploymentType)
+def _token(request, password, identifier):
+    """
+    Generates two permanent access tokens
+    1. General access token (log, update, restart, etc.)
+    2. Webhook access token (Async restart)
+    """
+
+    # Issue token with general permissions
+    general, _ = Token.issue("General token", dict(id=identifier), [
+        "log",
+        "pull",
+        "stop",
+        "start",
+        "update",
+        "restart",
+    ], 10 * 60 * 60 * 24 * 365)
+
+    # Issue token with webhook permission
+    webhook, _ = Token.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
+
+    # Return the created tokens
+    return dict(general=general.decode(), webhook=webhook.decode())
 
 
 @router.post("edit")
