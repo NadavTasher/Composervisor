@@ -1,9 +1,6 @@
 # Select the base image
 FROM webhood/3.8:2023.01.07
 
-# Install python dependencies
-RUN pip install bunch
-
 # Install some dependencies
 RUN apt update
 RUN apt install -yq git ssh docker.io
