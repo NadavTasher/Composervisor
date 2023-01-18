@@ -33,7 +33,7 @@ def PasswordType(password):
 
 def DeploymentType(identifier):
     validate(identifier, Text)
-    assert identifier in DATABASE.read().keys(), "Invalid deployment ID"
+    assert identifier in DATABASE, "Invalid deployment ID"
 
 
 @future
