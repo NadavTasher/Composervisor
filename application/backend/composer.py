@@ -1,30 +1,29 @@
 import os
 import sys
 import json
-import bunch
 import logging
 import binascii
 
 from router import router
 
-from database import *
 from constants import *
 
+from puppy.token import Authority
 from puppy.process import execute
+from puppy.database import Database
 from puppy.filesystem import remove
-from puppy.token.authority import Authority
 from puppy.typing.check import validate, kwargcheck
 from puppy.typing.types import Text, Union, Optional
 from puppy.thread.future import future
 
 # Initialize database and token generator
-Data = Database("/opt/database.json")
-Token = Authority(os.environ.get("SECRET").encode())
+DATABASE = Database("/opt/composervisor")
+AUTHORITY = Authority(os.environ.get("SECRET").encode())
 
 
 def TokenType(token):
     validate(token, Text)
-    Token.validate(token)
+    AUTHORITY.validate(token)
 
 
 def PasswordType(password):
@@ -34,7 +33,7 @@ def PasswordType(password):
 
 def DeploymentType(identifier):
     validate(identifier, Text)
-    assert identifier in Data.read().keys(), "Invalid deployment ID"
+    assert identifier in DATABASE, "Invalid deployment ID"
 
 
 @future
@@ -71,10 +70,10 @@ def register(action, command, setup, asyncronous):
     @kwargcheck(token=TokenType)
     def _action(request, token, **ignored):
         # Parse token object and get ID
-        identifier = bunch.Bunch(Token.validate(token, action).contents).id
+        identifier = AUTHORITY.validate(token, action).contents.id
 
         # Load the deployment
-        deployment = Data.get(identifier)
+        deployment = DATABASE[identifier]
 
         # Make sure the deployment was set-up
         assert deployment.repository, "Deployment repository was not set"
@@ -98,11 +97,8 @@ def _list(request, password):
     Lists all deployment with configuration values
     """
 
-    # Read complete database
-    data = Data.read()
-
     # Create a dictionary with ID->Name of deployments
-    return {identifier: deployment["name"] for identifier, deployment in data.items()}
+    return {identifier: deployment.name for identifier, deployment in DATABASE.items()}
 
 
 @router.post("new")
@@ -116,7 +112,7 @@ def _new(request, password):
     identifier = binascii.b2a_hex(os.urandom(4)).decode()
 
     # Update database with new deployment
-    Data.set(identifier, dict(name=None, directory=None, repository=None))
+    DATABASE[identifier] = dict(name=None, directory=None, repository=None)
 
     # Create directory for deployment
     os.makedirs(os.path.join(OUTPUT, identifier))
@@ -136,10 +132,10 @@ def _info(request, token):
     """
 
     # Parse token object and get ID
-    identifier = bunch.Bunch(Token.validate(token).contents).id
+    identifier = AUTHORITY.validate(token).contents.id
 
     # Load the deployment
-    return Data.get(identifier)
+    return DATABASE[identifier]
 
 
 @router.post("key")
@@ -161,7 +157,7 @@ def _access(request, password, identifier):
     """
 
     # Create temporary access token
-    token, _ = Token.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
+    token, _ = AUTHORITY.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
 
     # Return the created token
     return token.decode()
@@ -177,7 +173,7 @@ def _token(request, password, identifier):
     """
 
     # Issue token with general permissions
-    general, _ = Token.issue(str(), dict(id=identifier), [
+    general, _ = AUTHORITY.issue(str(), dict(id=identifier), [
         "log",
         "pull",
         "stop",
@@ -188,7 +184,7 @@ def _token(request, password, identifier):
     ], 10 * 60 * 60 * 24 * 365)
 
     # Issue token with webhook permission
-    webhook, _ = Token.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
+    webhook, _ = AUTHORITY.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
 
     # Return the created tokens
     return dict(general=general.decode(), webhook=webhook.decode())
@@ -201,7 +197,7 @@ def _edit(request, password, identifier, deployment):
     Edits an existing deployment
     """
 
-    Data.set(identifier, deployment)
+    DATABASE[identifier] = deployment
 
 
 @router.post("delete")
@@ -215,7 +211,7 @@ def _delete(request, password, identifier):
     if os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)):
         # Destroy the deployment
         try:
-            ~evaluate(DESTROY_COMMAND, identifier, **Data.get(identifier))
+            ~evaluate(DESTROY_COMMAND, identifier, **DATABASE[identifier])
         except:
             pass
 
@@ -223,7 +219,7 @@ def _delete(request, password, identifier):
     remove(os.path.join(OUTPUT, identifier))
 
     # Remove from the database
-    Data.remove(identifier)
+    del DATABASE[identifier]
 
 
 for name, (command, setup, asyncronous) in ACTIONS.items():
