@@ -10,20 +10,20 @@ from constants import *
 
 from puppy.token import Authority
 from puppy.process import execute
-from puppy.database import Database
 from puppy.filesystem import remove
 from puppy.typing.check import validate, kwargcheck
 from puppy.typing.types import Text, Union, Optional
 from puppy.thread.future import future
+from puppy.database.keystore import Database
 
 # Initialize database and token generator
-DATABASE = Database("/opt/composervisor")
-AUTHORITY = Authority(os.environ.get("SECRET").encode())
+database = Database("/opt/composervisor")
+authority = Authority(os.environ.get("SECRET").encode())
 
 
 def TokenType(token):
     validate(token, Text)
-    AUTHORITY.validate(token)
+    authority.validate(token)
 
 
 def PasswordType(password):
@@ -33,7 +33,7 @@ def PasswordType(password):
 
 def DeploymentType(identifier):
     validate(identifier, Text)
-    assert identifier in DATABASE, "Invalid deployment ID"
+    assert identifier in database, "Invalid deployment ID"
 
 
 @future
@@ -70,10 +70,10 @@ def register(action, command, setup, asyncronous):
     @kwargcheck(token=TokenType)
     def _action(request, token, **ignored):
         # Parse token object and get ID
-        identifier = AUTHORITY.validate(token, action).contents.id
+        identifier = authority.validate(token, action).contents.id
 
         # Load the deployment
-        deployment = DATABASE[identifier]
+        deployment = database[identifier]
 
         # Make sure the deployment was set-up
         assert deployment.repository, "Deployment repository was not set"
@@ -98,7 +98,7 @@ def _list(request, password):
     """
 
     # Create a dictionary with ID->Name of deployments
-    return {identifier: deployment.name for identifier, deployment in DATABASE.items()}
+    return {identifier: deployment.name for identifier, deployment in database.items()}
 
 
 @router.post("new")
@@ -112,7 +112,7 @@ def _new(request, password):
     identifier = binascii.b2a_hex(os.urandom(4)).decode()
 
     # Update database with new deployment
-    DATABASE[identifier] = dict(name=None, directory=None, repository=None)
+    database[identifier] = dict(name=None, directory=None, repository=None)
 
     # Create directory for deployment
     os.makedirs(os.path.join(OUTPUT, identifier))
@@ -132,10 +132,10 @@ def _info(request, token):
     """
 
     # Parse token object and get ID
-    identifier = AUTHORITY.validate(token).contents.id
+    identifier = authority.validate(token).contents.id
 
     # Load the deployment
-    return DATABASE[identifier]
+    return dict(database[identifier])
 
 
 @router.post("key")
@@ -157,7 +157,7 @@ def _access(request, password, identifier):
     """
 
     # Create temporary access token
-    token, _ = AUTHORITY.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
+    token, _ = authority.issue("Temporary access token for %s" % identifier, dict(id=identifier), list(ACTIONS.keys()), 60 * 10)
 
     # Return the created token
     return token.decode()
@@ -173,7 +173,7 @@ def _token(request, password, identifier):
     """
 
     # Issue token with general permissions
-    general, _ = AUTHORITY.issue(str(), dict(id=identifier), [
+    general, _ = authority.issue(str(), dict(id=identifier), [
         "log",
         "pull",
         "stop",
@@ -184,7 +184,7 @@ def _token(request, password, identifier):
     ], 10 * 60 * 60 * 24 * 365)
 
     # Issue token with webhook permission
-    webhook, _ = AUTHORITY.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
+    webhook, _ = authority.issue(str(), dict(id=identifier), ["webhook"], 10 * 60 * 60 * 24 * 365)
 
     # Return the created tokens
     return dict(general=general.decode(), webhook=webhook.decode())
@@ -197,7 +197,7 @@ def _edit(request, password, identifier, deployment):
     Edits an existing deployment
     """
 
-    DATABASE[identifier] = deployment
+    database[identifier] = deployment
 
 
 @router.post("delete")
@@ -211,7 +211,7 @@ def _delete(request, password, identifier):
     if os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)):
         # Destroy the deployment
         try:
-            ~evaluate(DESTROY_COMMAND, identifier, **DATABASE[identifier])
+            ~evaluate(DESTROY_COMMAND, identifier, **database[identifier])
         except:
             pass
 
@@ -219,7 +219,7 @@ def _delete(request, password, identifier):
     remove(os.path.join(OUTPUT, identifier))
 
     # Remove from the database
-    del DATABASE[identifier]
+    del database[identifier]
 
 
 for name, (command, setup, asyncronous) in ACTIONS.items():
