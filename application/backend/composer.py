@@ -135,7 +135,7 @@ def _info(request, token):
     identifier = authority.validate(token).contents.id
 
     # Load the deployment
-    return dict(database[identifier])
+    return database[identifier]
 
 
 @router.post("key")
