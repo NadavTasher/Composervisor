@@ -8,11 +8,12 @@ from router import router
 
 from constants import *
 
-from puppy.token import Authority
 from puppy.process import execute
 from puppy.filesystem import remove
-from puppy.typing.check import validate, kwargcheck
-from puppy.typing.types import Text, Union, Optional
+from puppy.token.authority import Authority
+from puppy.typing.check import kwargcheck
+from puppy.typing.validator import validator
+from puppy.typing.types import Text, Union, Schema, Optional
 from puppy.thread.future import future
 from puppy.database.keystore import Database
 
@@ -20,20 +21,26 @@ from puppy.database.keystore import Database
 database = Database("/opt/composervisor")
 authority = Authority(os.environ.get("SECRET").encode())
 
+@validator
+def ItemType(item):
+    return isinstance(item, Schema[dict(name=Text, directory=Text, repository=Text)])
 
-def TokenType(token):
-    validate(token, Text)
-    authority.validate(token)
-
-
+@validator
 def PasswordType(password):
-    validate(password, Text)
-    assert password == os.environ.get("PASSWORD"), "Password is invalid!"
+    # Make sure token is a text
+    if not isinstance(password, Text):
+        return False
+    
+    # Compare password to preset variable
+    return password == os.environ.get("PASSWORD")
 
-
+@validator
 def DeploymentType(identifier):
-    validate(identifier, Text)
-    assert identifier in database, "Invalid deployment ID"
+    if not isinstance(identifier, Text):
+        return False
+
+    # Make sure identifier exists in database    
+    return identifier in database
 
 
 @future
@@ -67,10 +74,10 @@ def register(action, command, setup, asyncronous):
     """
 
     @router.post(action)
-    @kwargcheck(token=TokenType)
+    @kwargcheck(token=authority.TokenType[action])
     def _action(request, token, **ignored):
         # Parse token object and get ID
-        identifier = authority.validate(token, action).contents.id
+        identifier = authority.validate(token).contents.id
 
         # Load the deployment
         deployment = database[identifier]
@@ -125,7 +132,7 @@ def _new(request, password):
 
 
 @router.post("info")
-@kwargcheck(token=TokenType)
+@kwargcheck(token=authority.TokenType)
 def _info(request, token):
     """
     Fetches extended information about a deployment
@@ -191,7 +198,7 @@ def _token(request, password, identifier):
 
 
 @router.post("edit")
-@kwargcheck(password=PasswordType, identifier=DeploymentType, deployment=dict(name=Text, directory=Text, repository=Text))
+@kwargcheck(password=PasswordType, identifier=DeploymentType, deployment=ItemType)
 def _edit(request, password, identifier, deployment):
     """
     Edits an existing deployment
