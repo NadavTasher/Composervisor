@@ -147,8 +147,8 @@
 				});
 
 				// Add event listeners to the buttons
-				element.find("settings").addEventListener("click", () => (window.location.href = `/settings?identifier=${encodeURIComponent(identifier)}`));
-				element.find("deployment").addEventListener("click", () => (window.location.href = `/deployment?token=${encodeURIComponent(token)}`));
+				element.find("deployment").href = `/deployment?token=${encodeURIComponent(token)}`;
+				element.find("settings").href = `/settings?identifier=${encodeURIComponent(identifier)}`;
 
 				// Find status element
 				const status = element.find("status");
@@ -211,8 +211,8 @@
 				<p small left name="status">Loading status...</p>
 				<!-- Deployment controls -->
 				<div row stretch>
-					<p small left pointer name="deployment">Deployment</p>
-					<p small right pointer name="settings">Settings</p>
+					<a text small left pointer name="deployment">Deployment</a>
+					<a text small right pointer name="settings">Settings</a>
 				</div>
 			</div>
 		</template>
