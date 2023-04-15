@@ -1,5 +1,5 @@
 # Select the base image
-FROM webhood/3.8:2023.04.14
+FROM webhood/3.8:2023.04.15
 
 # Install some dependencies
 RUN apt update && apt install -yq curl git ssh docker.io
