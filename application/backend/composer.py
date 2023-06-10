@@ -21,25 +21,28 @@ from puppy.simple.filesystem import remove
 database = Database("/opt/composervisor")
 authority = Authority(os.environ.get("SECRET").encode())
 
+
 @validator
 def ItemType(item):
     return isinstance(item, Schema[dict(name=Text, directory=Text, repository=Text)])
+
 
 @validator
 def PasswordType(password):
     # Make sure token is a text
     if not isinstance(password, Text):
         return False
-    
+
     # Compare password to preset variable
     return password == os.environ.get("PASSWORD")
+
 
 @validator
 def DeploymentType(identifier):
     if not isinstance(identifier, Text):
         return False
 
-    # Make sure identifier exists in database    
+    # Make sure identifier exists in database
     return identifier in database
 
 
