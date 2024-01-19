@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!--
+    Copyright (c) 2024 Nadav Tasher
+    https://github.com/NadavTasher/Webhood
+-->
+<html class="row stretch" lang="en">
+	<head>
+		<!-- Charset -->
+		<meta charset="UTF-8" />
+
+		<!-- App Description -->
+		<meta name="description" content="Composervisor - Settings" />
+
+		<!-- Viewport -->
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=5, user-scalable=yes, minimal-ui" />
+
+		<!-- Mobile -->
+		<meta name=”color-scheme” content="light dark" />
+		<meta name="mobile-web-app-capable" content="yes" />
+
+		<!-- Mobile Safari -->
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Settings" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<!-- Icons -->
+		<link rel="icon" href="/resources/icon.png" />
+		<link rel="apple-touch-icon" href="/resources/icon-apple.png" />
+
+		<!-- Stylesheets -->
+		<link rel="stylesheet" href="/template/template.css" />
+		<link rel="stylesheet" href="/application/application.css" />
+		<link rel="stylesheet" href="/application/settings.css" />
+
+		<!-- Scripts  -->
+		<script type="text/javascript" src="/template/template.js"></script>
+		<script type="text/javascript" src="/application/application.js"></script>
+		<script type="text/javascript" src="/application/settings.js"></script>
+
+		<!-- App Title -->
+		<title>Settings</title>
+
+		<!-- No Script -->
+		<noscript></noscript>
+
+		<!-- Additional -->
+	</head>
+
+	<body class="column">
+		<div id="settings" hidden>
+			<!-- Page title -->
+			<p class="huge left">Settings</p>
+			<!-- Deployment name -->
+			<div class="coasted">
+				<p class="tiny left">Name</p>
+				<input class="small left" id="settings-name" placeholder="Name (e.g. Home-control server)" />
+			</div>
+			<!-- Repository address -->
+			<div class="coasted">
+				<p class="tiny left">Git repository address</p>
+				<input class="small left" id="settings-repository" placeholder="Repository (e.g. git@github.com:Webhood/Template.git)" />
+			</div>
+			<!-- Docker-Compose directory path -->
+			<div class="coasted">
+				<p class="tiny left">Directory with docker-compose file</p>
+				<input class="small left" id="settings-directory" placeholder="Directory (e.g. example/)" />
+			</div>
+			<!-- Public SSH key -->
+			<div class="coasted">
+				<p class="tiny left">Deploy key / Public SSH key</p>
+				<textarea class="input tiny left" id="settings-key" readonly></textarea>
+			</div>
+			<!-- Editing control buttons -->
+			<div class="coasted">
+				<p class="tiny left">Controls</p>
+				<div class="row stretch">
+					<button class="small center" id="settings-edit">Save</button>
+					<button class="small center" id="settings-token">Token</button>
+					<button class="small center" id="settings-delete">Delete</button>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

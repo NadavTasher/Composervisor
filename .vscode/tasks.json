@@ -5,12 +5,12 @@
         {
             "label": "Stop services",
             "type": "shell",
-            "command": "docker-compose down --timeout 1"
+            "command": "docker compose down --timeout 1"
         },
         {
             "label": "Start services",
             "type": "shell",
-            "command": "docker-compose up --build"
+            "command": "docker compose up --build"
         },
         {
             "label": "Restart services",

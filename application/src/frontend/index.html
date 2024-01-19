@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<!--
+    Copyright (c) 2024 Nadav Tasher
+    https://github.com/NadavTasher/Webhood
+-->
+<html class="row stretch" lang="en">
+	<head>
+		<!-- Charset -->
+		<meta charset="UTF-8" />
+
+		<!-- App Description -->
+		<meta name="description" content="Composervisor - Dashboard" />
+
+		<!-- Viewport -->
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=5, user-scalable=yes, minimal-ui" />
+
+		<!-- Mobile -->
+		<meta name=”color-scheme” content="light dark" />
+		<meta name="mobile-web-app-capable" content="yes" />
+
+		<!-- Mobile Safari -->
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Dashboard" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<!-- Icons -->
+		<link rel="icon" href="/resources/icon.png" />
+		<link rel="apple-touch-icon" href="/resources/icon-apple.png" />
+
+		<!-- Stylesheets -->
+		<link rel="stylesheet" href="/template/template.css" />
+		<link rel="stylesheet" href="/application/application.css" />
+		<link rel="stylesheet" href="/application/dashboard.css" />
+
+		<!-- Scripts  -->
+		<script type="text/javascript" src="/template/template.js"></script>
+		<script type="text/javascript" src="/application/application.js"></script>
+		<script type="text/javascript" src="/application/dashboard.js"></script>
+
+		<!-- App Title -->
+		<title>Dashboard</title>
+
+		<!-- No Script -->
+		<noscript></noscript>
+
+		<!-- Additional -->
+		<template id="dashboard-deployment">
+			<div class="coasted">
+				<!-- Deployment title -->
+				<p class="medium left">${name}</p>
+				<!-- Deployment status -->
+				<p class="small left" name="status">Loading status...</p>
+				<!-- Deployment controls -->
+				<div class="row stretch">
+					<a class="text small left pointer" name="deployment">Deployment</a>
+					<a class="text small right pointer" name="settings">Settings</a>
+				</div>
+			</div>
+		</template>
+	</head>
+
+	<body class="column">
+		<div id="dashboard" hidden>
+			<!-- Page title -->
+			<p class="huge left">Dashboard</p>
+			<!-- Deployments summary -->
+			<div class="coasted">
+				<p class="tiny left">Summary</p>
+				<!-- Dashboard summary and controls -->
+				<div class="row stretch">
+					<p class="small left" id="dashboard-summary">Loading summary...</p>
+					<p class="small right pointer" id="dashboard-new">New deployment</p>
+				</div>
+			</div>
+			<!-- Deployments list, generated dynamically -->
+			<div id="dashboard-list"></div>
+		</div>
+	</body>
+</html>

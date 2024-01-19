@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!--
+    Copyright (c) 2024 Nadav Tasher
+    https://github.com/NadavTasher/Webhood
+-->
+<html class="row stretch" lang="en">
+	<head>
+		<!-- Charset -->
+		<meta charset="UTF-8" />
+
+		<!-- App Description -->
+		<meta name="description" content="Composervisor - Deployment" />
+
+		<!-- Viewport -->
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=5, user-scalable=yes, minimal-ui" />
+
+		<!-- Mobile -->
+		<meta name=”color-scheme” content="light dark" />
+		<meta name="mobile-web-app-capable" content="yes" />
+
+		<!-- Mobile Safari -->
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Deployment" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+		<!-- Icons -->
+		<link rel="icon" href="/resources/icon.png" />
+		<link rel="apple-touch-icon" href="/resources/icon-apple.png" />
+
+		<!-- Stylesheets -->
+		<link rel="stylesheet" href="/template/template.css" />
+		<link rel="stylesheet" href="/application/application.css" />
+		<link rel="stylesheet" href="/application/deployment.css" />
+
+		<!-- Scripts  -->
+		<script type="text/javascript" src="/template/template.js"></script>
+		<script type="text/javascript" src="/application/application.js"></script>
+		<script type="text/javascript" src="/application/deployment.js"></script>
+
+		<!-- App Title -->
+		<title>Deployment</title>
+
+		<!-- No Script -->
+		<noscript></noscript>
+
+		<!-- Additional -->
+	</head>
+
+	<body class="column">
+		<div id="deployment" hidden>
+			<!-- Page title -->
+			<p class="huge left">Deployment</p>
+			<!-- Deployment name -->
+			<div class="coasted">
+				<p class="tiny left">Name</p>
+				<p class="small left" id="deployment-name">Loading name...</p>
+			</div>
+			<!-- Deployment status -->
+			<div class="coasted">
+				<p class="tiny left">Status</p>
+				<p class="small left" id="deployment-status">Loading status...</p>
+			</div>
+			<!-- Deployment log -->
+			<div class="coasted">
+				<div class="row">
+					<p class="tiny left stretched">Log</p>
+					<p class="tiny pointer maximized" id="deployment-refresh">Refresh</p>
+				</div>
+				<textarea class="input tiny left" id="deployment-log" readonly></textarea>
+			</div>
+			<!-- Deployment control buttons -->
+			<div class="coasted">
+				<p class="tiny left">Controls</p>
+				<div class="row stretch">
+					<button class="small center" id="deployment-start">Start</button>
+					<button class="small center" id="deployment-restart">Restart</button>
+					<button class="small center" id="deployment-stop">Stop</button>
+				</div>
+				<div class="row stretch">
+					<button class="small center" id="deployment-update">Update</button>
+					<button class="small center" id="deployment-clone">Clone</button>
+					<button class="small center" id="deployment-reset">Reset</button>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

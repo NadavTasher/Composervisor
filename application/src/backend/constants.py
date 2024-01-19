@@ -1,6 +1,6 @@
 # Directory constants
-OUTPUT = f'/opt'
-DEPLOYMENT = f'{OUTPUT}/{{identifier}}'
+DEPLOYMENTS_DIRECTORY = f'/opt/deployments'
+DEPLOYMENT = f'{DEPLOYMENTS_DIRECTORY}/{{identifier}}'
 
 # SSH constants
 PRIVATE = f'key'

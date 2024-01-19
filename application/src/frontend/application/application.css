@@ -1,0 +1,25 @@
+@media (prefers-color-scheme: dark) {
+	:root {
+		--text: #ffffff;
+		--theme: #0f172a;
+		--active: #7674af;
+		--passive: #1e293b;
+	}
+}
+
+@media (prefers-color-scheme: light) {
+	:root {
+		--text: #707070;
+		--theme: #ffffff;
+		--active: #c0c0c0;
+		--passive: #f0f0f0;
+	}
+}
+
+body {
+	max-width: 1000px;
+}
+
+* {
+	font-family: monospace !important;
+}

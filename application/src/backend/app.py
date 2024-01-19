@@ -1,34 +1,40 @@
 import os
 import sys
 import json
+import shutil
 import logging
 import binascii
+import subprocess
 
+# Import utilities
+from fsdicts import *
+from runtypes import *
+from guardify import *
+
+# Import internal router
 from router import router
 
-from constants import *
+# Create some constants
+DEPLOYMENTS_DIRECTORY = "/opt/deployments"
+PRIVATE_KEY_NAME = "id_rsa"
+PUBLIC_KEY_NAME = PRIVATE_KEY_NAME + ".pub"
 
-from puppy.token.authority import Authority
-from puppy.typing.check import kwargcheck
-from puppy.typing.types import Text, Union, Schema, Optional
-from puppy.typing.validator import validator
-from puppy.thread.future import future
-from puppy.simple.process import execute
-from puppy.simple.database import Database
-from puppy.simple.filesystem import remove
+# Setup the logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 
 # Initialize database and token generator
-database = Database("/opt/composervisor")
-authority = Authority(os.environ.get("SECRET").encode())
+database = fastdict("/opt/database")
+authority = Authority(os.environ["SECRET"].encode())
 
 
-@validator
-def ItemType(item):
-    return isinstance(item, Schema[dict(name=Text, directory=Text, repository=Text)])
+@typechecker
+def Item(item):
+    return Schema[dict(name=Text, directory=Text, repository=Text)](item)
 
 
-@validator
-def PasswordType(password):
+@typechecker
+def Password(password):
     # Make sure token is a text
     if not isinstance(password, Text):
         return False
@@ -37,13 +43,17 @@ def PasswordType(password):
     return password == os.environ.get("PASSWORD")
 
 
-@validator
-def DeploymentType(identifier):
-    if not isinstance(identifier, Text):
-        return False
+@typechecker
+def Identifier(identifier):
+    # Convert the identifier to text
+    identifier = Text(identifier)
 
     # Make sure identifier exists in database
-    return identifier in database
+    if identifier not in database:
+        raise Exception("%r is not a deployment" % identifier)
+    
+    # Return the converted identifier
+    return identifier
 
 
 @future
@@ -66,7 +76,7 @@ def evaluate(command, identifier=None, **parameters):
     # Render command with parameters
     command = command.format(identifier=identifier, **escaped_parameters)
 
-    # Execute command and return output
+    # Execute command and return DEPLOYMENTS_DIRECTORY
     return execute(command)
 
 
@@ -76,11 +86,10 @@ def register(action, command, setup, asyncronous):
     An action is a command that gets formatted with parameters
     """
 
-    @router.post(action)
-    @kwargcheck(token=authority.TokenType[action])
-    def _action(request, token, **ignored):
+    @router.post(action, type_token=authority.TokenType[action])
+    def _action(token, **ignored):
         # Parse token object and get ID
-        identifier = authority.validate(token).contents.id
+        identifier = Identifier(token.contents["id"])
 
         # Load the deployment
         deployment = database[identifier]
@@ -90,7 +99,7 @@ def register(action, command, setup, asyncronous):
         assert deployment.directory, "Deployment directory was not set"
 
         # Make sure setup requirements are met
-        assert os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)) == setup, "Deployment repository setup requirements not met"
+        assert os.path.exists(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, REPOSITORY)) == setup, "Deployment repository setup requirements not met"
 
         # Format command and execute it
         execution = evaluate(command, identifier, **deployment)
@@ -100,9 +109,8 @@ def register(action, command, setup, asyncronous):
             return (~execution).decode()
 
 
-@router.post("list")
-@kwargcheck(password=PasswordType)
-def _list(request, password):
+@router.post("list", type_password=Password)
+def _list(password):
     """
     Lists all deployment with configuration values
     """
@@ -111,9 +119,8 @@ def _list(request, password):
     return {identifier: deployment.name for identifier, deployment in database.items()}
 
 
-@router.post("new")
-@kwargcheck(password=PasswordType)
-def _new(request, password):
+@router.post("new", type_password=Password)
+def _new(password):
     """
     Creates a new deployment
     """
@@ -124,44 +131,44 @@ def _new(request, password):
     # Update database with new deployment
     database[identifier] = dict(name=None, directory=None, repository=None)
 
+    # Create deployment path from identifier
+    directory = os.path.join(DEPLOYMENTS_DIRECTORY, identifier)
+
     # Create directory for deployment
-    os.makedirs(os.path.join(OUTPUT, identifier))
+    os.makedirs(directory)
 
     # Create SSH access key for deployment
-    ~evaluate(KEY_COMMAND, identifier)
+    subprocess.check_call(["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", PRIVATE_KEY_NAME, "-N", str(), "Deployment key for %s" % identifier], cwd=directory)
 
     # Return the new ID
     return identifier
 
 
-@router.post("info")
-@kwargcheck(token=authority.TokenType)
-def _info(request, token):
+@router.post("info", type_token=authority.TokenType)
+def _info(token):
     """
     Fetches extended information about a deployment
     """
 
     # Parse token object and get ID
-    identifier = authority.validate(token).contents.id
+    identifier = Identifier(token.contents["id"])
 
     # Load the deployment
     return database[identifier]
 
 
-@router.post("key")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _key(request, password, identifier):
+@router.post("key", type_password=Password, type_identifier=Identifier)
+def _key(password, identifier):
     # Read deployment SSH key
-    with open(os.path.join(OUTPUT, identifier, PUBLIC), "rb") as key_file:
+    with open(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, PUBLIC), "rb") as key_file:
         key = key_file.read()
 
     # Return decoded key
     return key.decode()
 
 
-@router.post("access")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _access(request, password, identifier):
+@router.post("access", type_password=Password, type_identifier=Identifier)
+def _access(password, identifier):
     """
     Generate a temporary access token for a deployment
     """
@@ -173,9 +180,8 @@ def _access(request, password, identifier):
     return token.decode()
 
 
-@router.post("token")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _token(request, password, identifier):
+@router.post("token", type_password=Password, type_identifier=Identifier)
+def _token(password, identifier):
     """
     Generates two permanent access tokens
     1. General access token (log, update, restart, etc.)
@@ -200,9 +206,8 @@ def _token(request, password, identifier):
     return dict(general=general.decode(), webhook=webhook.decode())
 
 
-@router.post("edit")
-@kwargcheck(password=PasswordType, identifier=DeploymentType, deployment=ItemType)
-def _edit(request, password, identifier, deployment):
+@router.post("edit", type_password=Password, type_identifier=Identifier, type_deployment=Item)
+def _edit(password, identifier, deployment):
     """
     Edits an existing deployment
     """
@@ -210,15 +215,14 @@ def _edit(request, password, identifier, deployment):
     database[identifier] = deployment
 
 
-@router.post("delete")
-@kwargcheck(password=PasswordType, identifier=DeploymentType)
-def _delete(request, password, identifier):
+@router.post("delete", type_password=Password, type_identifier=Identifier)
+def _delete(password, identifier):
     """
     Deletes an existing deployment
     """
 
     # Check if repository was cloned
-    if os.path.exists(os.path.join(OUTPUT, identifier, REPOSITORY)):
+    if os.path.exists(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, REPOSITORY)):
         # Destroy the deployment
         try:
             ~evaluate(DESTROY_COMMAND, identifier, **database[identifier])
@@ -226,7 +230,7 @@ def _delete(request, password, identifier):
             pass
 
     # Delete the directory
-    remove(os.path.join(OUTPUT, identifier))
+    shutil.rmtree(os.path.join(DEPLOYMENTS_DIRECTORY, identifier))
 
     # Remove from the database
     del database[identifier]
