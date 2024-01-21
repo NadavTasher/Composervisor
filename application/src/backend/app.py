@@ -160,7 +160,7 @@ def _info(token):
 @router.post("key", type_password=Password, type_identifier=Identifier)
 def _key(password, identifier):
     # Read deployment SSH key
-    with open(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, PUBLIC), "rb") as key_file:
+    with open(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, PUBLIC_KEY_NAME), "rb") as key_file:
         key = key_file.read()
 
     # Return decoded key
