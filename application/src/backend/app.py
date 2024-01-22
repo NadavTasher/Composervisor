@@ -18,42 +18,13 @@ from router import router
 DEPLOYMENTS_DIRECTORY = "/opt/deployments"
 PRIVATE_KEY_NAME = "id_rsa"
 PUBLIC_KEY_NAME = PRIVATE_KEY_NAME + ".pub"
+DOCKER_COMPOSE = "docker-compose"
 
 # Setup the logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-# Initialize database and token generator
-database = fastdict("/opt/database")
-authority = Authority(os.environ["SECRET"].encode())
 
-
-@typechecker
-def Item(item):
-    return Schema[dict(name=Text, directory=Text, repository=Text)](item)
-
-
-@typechecker
-def Password(password):
-    # Make sure token is a text
-    if not isinstance(password, Text):
-        return False
-
-    # Compare password to preset variable
-    return password == os.environ.get("PASSWORD")
-
-
-@typechecker
-def Identifier(identifier):
-    # Convert the identifier to text
-    identifier = Text(identifier)
-
-    # Make sure identifier exists in database
-    if identifier not in database:
-        raise Exception("%r is not a deployment" % identifier)
-    
-    # Return the converted identifier
-    return identifier
 
 
 @future
@@ -109,8 +80,8 @@ def register(action, command, setup, asyncronous):
             return (~execution).decode()
 
 
-@router.post("list", type_password=Password)
-def _list(password):
+@router.post("/api/list", type_password=Password)
+def list(password):
     """
     Lists all deployment with configuration values
     """
@@ -119,8 +90,8 @@ def _list(password):
     return {identifier: deployment.name for identifier, deployment in database.items()}
 
 
-@router.post("new", type_password=Password)
-def _new(password):
+@router.post("/api/new", type_password=Password)
+def new(password):
     """
     Creates a new deployment
     """
@@ -144,8 +115,8 @@ def _new(password):
     return identifier
 
 
-@router.post("info", type_token=authority.TokenType)
-def _info(token):
+@router.post("/api/info", type_token=Token)
+def info(token):
     """
     Fetches extended information about a deployment
     """
@@ -157,18 +128,18 @@ def _info(token):
     return database[identifier]
 
 
-@router.post("key", type_password=Password, type_identifier=Identifier)
-def _key(password, identifier):
+@router.post("/api/key", type_password=Password, type_identifier=Identifier)
+def key(password, identifier):
     # Read deployment SSH key
-    with open(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, PUBLIC_KEY_NAME), "rb") as key_file:
+    with open(os.path.join(DEPLOYMENTS_DIRECTORY, identifier, PUBLIC), "rb") as key_file:
         key = key_file.read()
 
     # Return decoded key
     return key.decode()
 
 
-@router.post("access", type_password=Password, type_identifier=Identifier)
-def _access(password, identifier):
+@router.post("/api/access", type_password=Password, type_identifier=Identifier)
+def access(password, identifier):
     """
     Generate a temporary access token for a deployment
     """
@@ -180,8 +151,8 @@ def _access(password, identifier):
     return token.decode()
 
 
-@router.post("token", type_password=Password, type_identifier=Identifier)
-def _token(password, identifier):
+@router.post("/api/token", type_password=Password, type_identifier=Identifier)
+def token(password, identifier):
     """
     Generates two permanent access tokens
     1. General access token (log, update, restart, etc.)
@@ -206,8 +177,8 @@ def _token(password, identifier):
     return dict(general=general.decode(), webhook=webhook.decode())
 
 
-@router.post("edit", type_password=Password, type_identifier=Identifier, type_deployment=Item)
-def _edit(password, identifier, deployment):
+@router.post("/api/edit", type_password=Password, type_identifier=Identifier, type_deployment=Item)
+def edit(password, identifier, deployment):
     """
     Edits an existing deployment
     """
@@ -215,8 +186,8 @@ def _edit(password, identifier, deployment):
     database[identifier] = deployment
 
 
-@router.post("delete", type_password=Password, type_identifier=Identifier)
-def _delete(password, identifier):
+@router.post("/api/delete", type_password=Password, type_identifier=Identifier)
+def delete(password, identifier):
     """
     Deletes an existing deployment
     """
@@ -235,6 +206,10 @@ def _delete(password, identifier):
     # Remove from the database
     del database[identifier]
 
+
+@router.post("/api/start", type_token=authority.TokenType["start"])
+def start_deployment(identifier):
+    return subprocess.check_output([DOCKER_COMPOSE, "up", "--no-color", "--detach"])
 
 for name, (command, setup, asyncronous) in ACTIONS.items():
     register(name, command, setup, asyncronous)
