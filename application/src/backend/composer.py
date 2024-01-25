@@ -44,6 +44,20 @@ class Deployment(object):
 		# Read the public key
 		with open(self._ssh_pubkey_path, "r") as pubkey_file:
 			return pubkey_file.read()
+		
+	@property
+	def status(self):
+		# Make sure repository was cloned
+		assert self.cloned, "Repository was not cloned"
+
+		try:
+			# Check whether any containers are running
+			self._compose("ps", "--quiet")
+
+			# Check successful, return True
+			return True
+		except:
+			return False
 
 	def initialize(self):
 		# Make sure not already initialized
@@ -80,13 +94,6 @@ class Deployment(object):
 		# Return the repository object
 		return DATABASE[self._identifier]
 	
-	def status(self):
-		# Make sure repository was cloned
-		assert self.cloned, "Repository was not cloned"
-
-		# Check whether any containers are running
-		return self._compose("ps", "--quiet")
-	
 	def logs(self, tail=100):
 		# Make sure repository was cloned
 		assert self.cloned, "Repository was not cloned"
@@ -115,12 +122,12 @@ class Deployment(object):
 		# Stop the deployment containers with timeout
 		return self._compose("down", "--remove-orphans", "--timeout", str(timeout))
 
-	def destroy(self):
+	def destroy(self, timeout=3):
 		# Make sure repository was cloned
 		assert self.cloned, "Repository was not cloned"
 
 		# Stop the deployment
-		self.stop()
+		self.stop(timeout)
 
 		# Destroy the deployment by removing volumes
 		return self._compose("down", "--volumes")

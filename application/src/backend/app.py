@@ -54,6 +54,10 @@ def DeploymentType(identifier):
     # Return the converted identifier
     return deployment
 
+def deployment_from_token(token):
+    # Return the deployment
+    return DeploymentType(token.contents["id"])
+
 @router.post("/api/list", type_password=PasswordType)
 def list(password):
     # Create a dictionary with ID->Name of deployments
@@ -129,36 +133,44 @@ def token(password, deployment):
 
 @router.post("/api/edit", type_password=PasswordType, type_deployment=DeploymentType, type_name=Optional[Text], type_directory=Optional[Text], type_repository=Optional[Text])
 def edit(password, deployment, name=None, directory=None, repository=None):
-    # Edit the deployment
     return deployment.edit(name=name, directory=directory, repository=repository)
-
 
 @router.post("/api/delete", type_password=PasswordType, type_deployment=DeploymentType)
 def delete(password, deployment):
     return deployment.delete()
 
+@router.post("/api/status", type_token=AUTHORITY.TokenType["status"],type_timeout=Optional[int])
+def destroy(token, timeout=3):
+    return deployment_from_token(token).destroy(timeout)
 
 @router.post("/api/start", type_token=AUTHORITY.TokenType["start"])
 def start(token):
-    # Create deployment from token
-    deployment = Deployment(token.contents["id"])
+    return deployment_from_token(token).start()
 
-    # Start the deployment
-    return deployment.start()
+@router.post("/api/stop", type_token=AUTHORITY.TokenType["stop"], type_timeout=Optional[int])
+def stop(token, timeout=3):
+    return deployment_from_token(token).stop(timeout=timeout)
 
-@router.post("/api/stop", type_token=AUTHORITY.TokenType["stop"])
-def start(token, timeout=3):
-    # Create deployment from token
-    deployment = Deployment(token.contents["id"])
+@router.post("/api/logs", type_token=AUTHORITY.TokenType["logs"], type_tail=Optional[int])
+def logs(token, tail=100):
+    return deployment_from_token(token).logs(tail=tail)
 
-    # Start the deployment
-    return deployment.stop(timeout)
+@router.post("/api/pull", type_token=AUTHORITY.TokenType["pull"], type_reset=Optional[bool])
+def pull(token, reset=False):
+    return deployment_from_token(token).pull(reset=reset)
 
-@router.post("/api/start", type_token=AUTHORITY.TokenType["start"])
-def start(token):
-    # Create deployment from token
-    deployment = Deployment(token.contents["id"])
+@router.post("/api/clone", type_token=AUTHORITY.TokenType["clone"])
+def clone(token):
+    return deployment_from_token(token).clone()
 
-    # Start the deployment
-    return deployment.start()
+@router.post("/api/destroy", type_token=AUTHORITY.TokenType["destroy"],type_timeout=Optional[int])
+def destroy(token, timeout=3):
+    return deployment_from_token(token).destroy(timeout)
 
+@router.post("/api/restart", type_token=AUTHORITY.TokenType["stop", "start"], type_timeout=Optional[int])
+def restart(token, timeout=3):
+    return stop(token, timeout) + start(token)
+
+@router.post("/api/reset", type_token=AUTHORITY.TokenType["destroy", "start"], type_timeout=Optional[int])
+def reset(token, timeout=3):
+    return destroy(token, timeout) + start(token)
