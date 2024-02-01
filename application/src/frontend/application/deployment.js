@@ -6,15 +6,15 @@ window.addEventListener("load", async function () {
 	const parameters = new URLSearchParams(window.location.search);
 
 	// Load the page
-	await load(parameters.get("token"));
+	await load(parameters.get("token"), parameters.get("tail", 100));
 
 	// Show the page
 	UI.show("deployment");
 });
 
-async function load(token) {
+async function load(token, tail=100) {
 	try {
-		await Progress.screen("Loading deployment...", loadDeployment(token));
+		await Progress.screen("Loading deployment...", loadDeployment(token, tail));
 	} catch (error) {
 		// Display the error
 		await Alert.dialog(error);
@@ -24,12 +24,12 @@ async function load(token) {
 	}
 }
 
-async function loadDeployment(token) {
+async function loadDeployment(token, tail=100) {
 	// Fetch deployment details
-	const deployment = await API.call("info", { token });
+	const information = await API.call("info", { token });
 
 	// Add data to the editor
-	UI.write("deployment-name", deployment.name);
+	UI.write("deployment-name", information.name);
 
 	try {
 		// Fetch the status of the deployment
@@ -39,7 +39,7 @@ async function loadDeployment(token) {
 		if (status.length === 0) throw new Error();
 
 		// Fetch the log of the deployment
-		const log = await API.call("log", { token });
+		const log = await API.call("logs", { token, tail });
 
 		// Update log and status
 		UI.write("deployment-log", log);

@@ -9,15 +9,15 @@ window.addEventListener("load", async function () {
 	const parameters = new URLSearchParams(window.location.search);
 
 	// Load the page
-	await load(parameters.get("identifier"));
+	await load(parameters.get("deployment"));
 
 	// Show the page
 	UI.show("settings");
 });
 
-async function load(identifier) {
+async function load(deployment) {
 	try {
-		await Progress.screen("Loading settings...", loadSettings(identifier));
+		await Progress.screen("Loading settings...", loadSettings(deployment));
 	} catch (error) {
 		// Display the error
 		await Alert.dialog(error);
@@ -27,27 +27,27 @@ async function load(identifier) {
 	}
 }
 
-async function loadSettings(identifier) {
+async function loadSettings(deployment) {
 	// Fetch a new temporary access token
 	const token = await API.call("access", {
-		identifier: identifier,
+		deployment: deployment,
 		password: localStorage.password,
 	});
 
 	// Fetch deployment key
-	const key = await API.call("key", {
-		identifier: identifier,
+	const pubkey = await API.call("pubkey", {
+		deployment: deployment,
 		password: localStorage.password,
 	});
 
 	// Fetch deployment information
-	const deployment = await API.call("info", { token });
+	const information = await API.call("info", { token });
 
 	// Add data to the editor
-	UI.write("settings-key", key || "Missing SSH Key");
-	UI.write("settings-name", deployment.name || `Unnamed deployment - ${identifier}`);
-	UI.write("settings-directory", deployment.directory || ".");
-	UI.write("settings-repository", deployment.repository || "git@github.com:NadavTasher/Composervisor.git");
+	UI.write("settings-key", pubkey || "Missing SSH Key");
+	UI.write("settings-name", information.name || `Unnamed deployment - ${deployment}`);
+	UI.write("settings-directory", information.directory || ".");
+	UI.write("settings-repository", information.repository || "git@github.com:NadavTasher/Composervisor.git");
 
 	// Add event listeners to the buttons
 	for (const action of ["edit", "token", "delete"]) {
@@ -55,7 +55,7 @@ async function loadSettings(identifier) {
 			try {
 				// Create the parmeters
 				const parameters = {
-					identifier: identifier,
+					deployment: deployment,
 					password: localStorage.password,
 				};
 
@@ -70,11 +70,9 @@ async function loadSettings(identifier) {
 						throw new Error("User cancelled the action");
 				} else if (action === "edit") {
 					// Add editing parameters
-					parameters.deployment = {
-						name: UI.read("settings-name"),
-						directory: UI.read("settings-directory"),
-						repository: UI.read("settings-repository"),
-					};
+					parameters["name"] = UI.read("settings-name");
+					parameters["directory"] = UI.read("settings-directory");
+					parameters["repository"] = UI.read("settings-repository");
 				}
 
 				// Execute action

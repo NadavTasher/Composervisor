@@ -1,4 +1,5 @@
 import os
+import pipes
 import shutil
 import contextlib
 import subprocess
@@ -50,14 +51,13 @@ class Deployment(object):
 		# Make sure repository was cloned
 		assert self.cloned, "Repository was not cloned"
 
-		try:
-			# Check whether any containers are running
-			self._compose("ps", "--quiet")
+		# Check whether any containers are running
+		return self._compose("ps", "--quiet")
 
-			# Check successful, return True
-			return True
-		except:
-			return False
+		
+	@property
+	def information(self):
+		return dict(name=DATABASE[self._identifier].name, directory=DATABASE[self._identifier].directory, repository=DATABASE[self._identifier].repository) 
 
 	def initialize(self):
 		# Make sure not already initialized
@@ -67,13 +67,13 @@ class Deployment(object):
 		DATABASE[self._identifier] = dict(name=None, directory=None, repository=None)
 
 		# Set the default parameters
-		self.edit("Unnamed deployment - %r" % self._identifier, "bundle", "git@github.com/NadavTasher/Webhood.git")
+		self.edit("Unnamed deployment - %r" % self._identifier, "bundle", "git@github.com:NadavTasher/Webhood.git")
 
 		# Create directory for deployment
 		os.makedirs(self._deployment_path)
 
 		# Create SSH access key for deployment
-		subprocess.check_call(["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", PRIVATE_KEY_NAME, "-N", str(), "Deployment key for %s" % self._identifier], cwd=self._directory)
+		subprocess.check_call(["ssh-keygen", "-t", "rsa", "-b", "4096", "-f", self._ssh_key_path, "-N", str(), "-C", "Deployment key for %s" % self._identifier], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 	def edit(self, name=None, directory=None, repository=None):
 		# Make sure the deployment is initialized
@@ -90,9 +90,6 @@ class Deployment(object):
 		# Update repository if required
 		if repository and not self.cloned:
 			DATABASE[self._identifier].repository = repository
-
-		# Return the repository object
-		return DATABASE[self._identifier]
 	
 	def logs(self, tail=100):
 		# Make sure repository was cloned
@@ -170,7 +167,7 @@ class Deployment(object):
 	def _git(self, *args):
 		# Create process and execute it
 		process = subprocess.Popen(
-			["git", "-c", "pull.rebase", "false", "-c", "core.sshCommand", "ssh -i %r" % self._ssh_key_path] + args,
+			["git", "-c", "pull.rebase=false", "-c", "core.sshCommand=ssh -i %s" % pipes.quote(self._ssh_key_path)] + list(args),
 			stdin=subprocess.DEVNULL,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,	
@@ -181,7 +178,7 @@ class Deployment(object):
 
 	def _compose(self, *args):
 		# Fetch the inner-repository compose directory
-		inner_directory = DATABASE[self._deployment_path].directory
+		inner_directory = DATABASE[self._identifier].directory
 
 		# Create the compose directory
 		compose_directory = os.path.join(self._repository_path, inner_directory)
@@ -194,7 +191,7 @@ class Deployment(object):
 
 		# Create process and execute it
 		process = subprocess.Popen(
-			["docker-compose", "--ansi", "never", "--project-name", self._identifier, "--project-directory", compose_directory] + args,
+			["docker-compose", "--ansi", "never", "--project-name", self._identifier, "--project-directory", compose_directory] + list(args),
 			stdin=subprocess.DEVNULL,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,	
@@ -203,13 +200,17 @@ class Deployment(object):
 		# Wait for process
 		return self._wait(process)
 	
-	def _wait(self, process):
+	def _wait(self, process, encoding="utf-8"):
 		# Wait for the process to complete
 		stdout, stderr = process.communicate()
 
+		# Decode output if required
+		if encoding:
+			stdout, stderr = stdout.decode(encoding), stderr.decode(encoding)
+
 		# If the process didn't finish gracefully, raise exception
 		if process.returncode != 0:
-			raise RuntimeError(stderr)
+			raise RuntimeError(stdout + stderr)
 		
 		# Return the output
 		return stdout

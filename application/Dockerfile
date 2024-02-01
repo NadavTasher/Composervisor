@@ -1,5 +1,5 @@
 # Select the base image
-FROM webhood/3.8:2024.01.19
+FROM webhood/3.8:2024.02.01
 
 # Install some dependencies
 RUN apt update && \
@@ -12,7 +12,7 @@ COPY configurations/ssh_config /etc/ssh/ssh_config
 
 # Copy configurations
 COPY configurations/nginx.conf /etc/nginx/conf.d/nginx.conf
-COPY configurations/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY configurations/entrypoint.conf /etc/entrypoint/conf.d/entrypoint.conf
 
 # Copy sources
 COPY src /application

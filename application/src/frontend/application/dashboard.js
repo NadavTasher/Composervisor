@@ -20,7 +20,7 @@ async function load() {
 		await Alert.dialog(error);
 
 		// Redirect to dashboard
-		window.location.href = "/";
+		window.location = "/";
 	}
 }
 
@@ -28,7 +28,7 @@ async function loadDashboard() {
 	// Add action listeners to the buttons
 	UI.find("dashboard-new").onclick = async () => {
 		// Create new deployment and display editing page
-		const identifier = await Progress.screen(
+		const deployment = await Progress.screen(
 			"Creating new deployment...",
 			API.call("new", {
 				password: localStorage.password,
@@ -36,7 +36,7 @@ async function loadDashboard() {
 		);
 
 		// Go to settings
-		window.location.href = `/settings?identifier=${encodeURIComponent(identifier)}`;
+		window.location.href = `/settings/?deployment=${encodeURIComponent(deployment)}`;
 	};
 
 	// Get list of deployments
@@ -54,7 +54,7 @@ async function loadDashboard() {
 	});
 
 	// Add deployments to the list
-	for (const [identifier, name] of entries) {
+	for (const [deployment, name] of entries) {
 		// Create deployment element from template
 		const element = UI.populate("dashboard-deployment", { name });
 
@@ -62,23 +62,23 @@ async function loadDashboard() {
 		UI.find("dashboard-list").appendChild(element);
 
 		// Load status asynchronously
-		loadDeployment(element, identifier);
+		loadDeployment(element, deployment);
 	}
 
 	// Write the summary
 	UI.write("dashboard-summary", `${Object.keys(deployments).length} managed deployments`);
 }
 
-async function loadDeployment(element, identifier) {
+async function loadDeployment(element, deployment) {
 	// Generate a temporary access token
 	const token = await API.call("access", {
-		identifier: identifier,
+		deployment: deployment,
 		password: localStorage.password,
 	});
 
 	// Add event listeners to the buttons
-	element.find("deployment").href = `/deployment?token=${encodeURIComponent(token)}`;
-	element.find("settings").href = `/settings?identifier=${encodeURIComponent(identifier)}`;
+	element.find("deployment").href = `/deployment/?token=${encodeURIComponent(token)}`;
+	element.find("settings").href = `/settings/?deployment=${encodeURIComponent(deployment)}`;
 
 	// Find status element
 	const status = element.find("status");

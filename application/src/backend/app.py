@@ -1,10 +1,6 @@
 import os
-import sys
-import json
-import shutil
 import logging
 import binascii
-import subprocess
 
 # Import utilities
 from fsdicts import *
@@ -14,7 +10,6 @@ from guardify import *
 # Import internal router
 from router import router
 
-from types import PasswordType, DeploymentType
 from globals import DATABASE, AUTHORITY
 from composer import Deployment
 
@@ -33,7 +28,7 @@ def PasswordType(password):
     
     # Compare password to preset variable
     if password != os.environ.get("PASSWORD"):
-        raise ValueError("PasswordType is incorrect")
+        raise ValueError("Password is incorrect")
     
 	# Return the password
     return password
@@ -77,19 +72,6 @@ def new(password):
     return identifier
 
 
-@router.post("/api/info", type_token=Token)
-def info(token):
-    """
-    Fetches extended information about a deployment
-    """
-
-    # Parse token object and get ID
-    identifier = DeploymentType(token.contents["id"])
-
-    # Load the deployment
-    return DATABASE[identifier]
-
-
 @router.post("/api/pubkey", type_password=PasswordType, type_deployment=DeploymentType)
 def pubkey(password, deployment):
     # Read the SSH key
@@ -99,7 +81,23 @@ def pubkey(password, deployment):
 @router.post("/api/access", type_password=PasswordType, type_deployment=DeploymentType)
 def access(password, deployment):
     # Create temporary access token
-    token, _ = AUTHORITY.issue("Temporary access token for %s" % deployment.id, dict(id=deployment.id), [""], ACCESS_TOKEN_VALIDITY)
+    token, _ = AUTHORITY.issue("Temporary access token for %s" % deployment.id, dict(id=deployment.id), [
+        # Information
+        "info", 
+        "logs", 
+        "status", 
+        # Source management
+        "pull", 
+        "clone",
+        "update", 
+        # Runtime management
+        "stop", 
+        "start", 
+        "restart",
+        # Deployment management
+        "reset",
+        "destroy",
+    ], ACCESS_TOKEN_VALIDITY)
 
     # Return the created token
     return token
@@ -107,20 +105,17 @@ def access(password, deployment):
 
 @router.post("/api/token", type_password=PasswordType, type_deployment=DeploymentType)
 def token(password, deployment):
-    """
-    Generates two permanent access tokens
-    1. General access token (log, update, restart, etc.)
-    2. Webhook access token (Async restart)
-    """
-
     # Issue token with general permissions
     general, _ = AUTHORITY.issue(str(), dict(id=deployment.id), [
-        "log",
+        # Information
+        "logs",
+        "status",
+        # Source management
         "pull",
+        "update",
+        # Runtime management
         "stop",
         "start",
-        "status",
-        "update",
         "restart",
     ], PERMANENT_TOKEN_VALIDITY)
 
@@ -139,17 +134,22 @@ def edit(password, deployment, name=None, directory=None, repository=None):
 def delete(password, deployment):
     return deployment.delete()
 
-@router.post("/api/status", type_token=AUTHORITY.TokenType["status"],type_timeout=Optional[int])
-def destroy(token, timeout=3):
-    return deployment_from_token(token).destroy(timeout)
+@router.post("/api/info", type_token=AUTHORITY.TokenType["info"])
+def info(token):
+    # Parse token object and get ID
+    return deployment_from_token(token).information
+
+@router.post("/api/status", type_token=AUTHORITY.TokenType["status"])
+def status(token, timeout=3):
+    return deployment_from_token(token).status
 
 @router.post("/api/start", type_token=AUTHORITY.TokenType["start"])
 def start(token):
     return deployment_from_token(token).start()
 
 @router.post("/api/stop", type_token=AUTHORITY.TokenType["stop"], type_timeout=Optional[int])
-def stop(token, timeout=3):
-    return deployment_from_token(token).stop(timeout=timeout)
+def stop(token, timeout=None):
+    return deployment_from_token(token).stop(timeout=timeout or 3)
 
 @router.post("/api/logs", type_token=AUTHORITY.TokenType["logs"], type_tail=Optional[int])
 def logs(token, tail=100):
@@ -164,13 +164,13 @@ def clone(token):
     return deployment_from_token(token).clone()
 
 @router.post("/api/destroy", type_token=AUTHORITY.TokenType["destroy"],type_timeout=Optional[int])
-def destroy(token, timeout=3):
+def destroy(token, timeout=None):
     return deployment_from_token(token).destroy(timeout)
 
 @router.post("/api/restart", type_token=AUTHORITY.TokenType["stop", "start"], type_timeout=Optional[int])
-def restart(token, timeout=3):
+def restart(token, timeout=None):
     return stop(token, timeout) + start(token)
 
 @router.post("/api/reset", type_token=AUTHORITY.TokenType["destroy", "start"], type_timeout=Optional[int])
-def reset(token, timeout=3):
+def reset(token, timeout=None):
     return destroy(token, timeout) + start(token)
