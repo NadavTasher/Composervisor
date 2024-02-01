@@ -85,10 +85,10 @@ async function loadDeployment(element, deployment) {
 
 	try {
 		// Fetch status of deployment
-		const DEPLOYMENTS_DIRECTORY = await API.call("status", { token });
+		const containers = await API.call("status", { token });
 
 		// Check if status has length
-		if (DEPLOYMENTS_DIRECTORY.length === 0) throw new Error();
+		if (containers.length === 0) throw new Error();
 
 		// Update status
 		status.style.color = "lightgreen";

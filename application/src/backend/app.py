@@ -147,9 +147,9 @@ def status(token, timeout=3):
 def start(token):
     return deployment_from_token(token).start()
 
-@router.post("/api/stop", type_token=AUTHORITY.TokenType["stop"], type_timeout=Optional[int])
-def stop(token, timeout=None):
-    return deployment_from_token(token).stop(timeout=timeout or 3)
+@router.post("/api/stop", type_token=AUTHORITY.TokenType["stop"], optional_timeout=int)
+def stop(token, timeout=3):
+    return deployment_from_token(token).stop(timeout=timeout)
 
 @router.post("/api/logs", type_token=AUTHORITY.TokenType["logs"], type_tail=Optional[int])
 def logs(token, tail=100):

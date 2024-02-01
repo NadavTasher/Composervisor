@@ -4,12 +4,10 @@ import shutil
 import contextlib
 import subprocess
 
+from runtypes import kwargchecker
+
 from globals import DATABASE
 
-# Create some constants
-DEPLOYMENTS_DIRECTORY = "/opt/deployments"
-PRIVATE_KEY_NAME = "id_rsa"
-PUBLIC_KEY_NAME = PRIVATE_KEY_NAME + ".pub"
 
 class Deployment(object):
 
@@ -18,10 +16,21 @@ class Deployment(object):
 		self._identifier = identifier
 
 		# Create deployment paths
-		self._deployment_path = os.path.join(DEPLOYMENTS_DIRECTORY, self._identifier)
+		self._deployment_path = os.path.join("/opt/deployments", self._identifier)
 		self._repository_path = os.path.join(self._deployment_path, "repository")
 		self._ssh_key_path = os.path.join(self._deployment_path, "id_rsa")
 		self._ssh_pubkey_path = os.path.join(self._deployment_path, "id_rsa.pub")
+
+		# Create dictionary of actions
+		# self._actions = {
+		# 	"build": self.build,
+		# 	"start": self.start,
+		# 	"stop": self.stop,
+		# 	"restart": self.restart,
+		# 	"reset": self.reset,
+		# 	"clone": self.clone,
+		# 	"pull": self.pull
+		# }
 
 	@property
 	def id(self):
