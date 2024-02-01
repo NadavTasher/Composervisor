@@ -17,8 +17,8 @@ from composer import Deployment
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 # Read the temporary token validity
-ACCESS_TOKEN_VALIDITY = int(os.environ.get("ACCESS_TOKEN_VALIDITY", str(60 * 10)))
-PERMANENT_TOKEN_VALIDITY = int(os.environ.get("PERMANENT_TOKEN_VALIDITY", str(10 * 60 * 60 * 24 * 365)))
+ACCESS_TOKEN_VALIDITY = int(os.environ.get("ACCESS_TOKEN_VALIDITY", 60 * 10))
+PERMANENT_TOKEN_VALIDITY = int(os.environ.get("PERMANENT_TOKEN_VALIDITY", 10 * 60 * 60 * 24 * 365))
 
 
 @typechecker
