@@ -21,17 +21,6 @@ class Deployment(object):
 		self._ssh_key_path = os.path.join(self._deployment_path, "id_rsa")
 		self._ssh_pubkey_path = os.path.join(self._deployment_path, "id_rsa.pub")
 
-		# Create dictionary of actions
-		# self._actions = {
-		# 	"build": self.build,
-		# 	"start": self.start,
-		# 	"stop": self.stop,
-		# 	"restart": self.restart,
-		# 	"reset": self.reset,
-		# 	"clone": self.clone,
-		# 	"pull": self.pull
-		# }
-
 	@property
 	def id(self):
 		return self._identifier

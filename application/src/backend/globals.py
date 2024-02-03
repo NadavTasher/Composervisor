@@ -7,6 +7,7 @@ from guardify import Authority
 DATABASE = localdict("/opt/database")
 
 # Initialize action queue
+
 QUEUE, RESULTS = localdict("/opt/queue"), localdict("/opt/results")
 
 # Initialize token generator

@@ -4,13 +4,13 @@ import binascii
 
 # Import utilities
 from fsdicts import *
-from runtypes import typechecker, Text, Optional
+from runtypes import typechecker, Text, Optional, Dict, Any, Hexadecimal
 from guardify import *
 
 # Import internal router
 from router import router
 
-from globals import DATABASE, AUTHORITY
+from globals import DATABASE, AUTHORITY, QUEUE, RESULTS
 from composer import Deployment
 
 # Setup the logging
@@ -53,13 +53,57 @@ def deployment_from_token(token):
     # Return the deployment
     return DeploymentType(token.contents["id"])
 
-@router.post("/api/list", type_password=PasswordType)
-def list(password):
-    # Create a dictionary with ID->Name of deployments
-    return {identifier: deployment.name for identifier, deployment in DATABASE.items()}
 
+@router.post("/api/job/run", type_token=AUTHORITY.TokenType, type_action=Text, optional_parameters=Dict[Text, Any])
+def run_job(token, action, parameters={}):
+    # Make sure the token is allowed to execute the job
+    if action not in token.permissions:
+        raise PermissionError("Not allowed to execute action")
 
-@router.post("/api/new", type_password=PasswordType)
+    # Create a new random job ID
+    job_id = os.urandom(4).hex()
+    
+    # Fetch the deployment from the token
+    deployment = deployment_from_token(token)
+
+    # Fetch the deployment ID
+    QUEUE[deployment.id][job_id] = dict(action=action, parameters=parameters)
+
+    # Return the new job ID
+    return job_id
+
+@router.post("/api/job/poll", type_token=AUTHORITY.TokenType, type_id=Hexadecimal)
+def poll_job(token, id):
+    # Fetch the deployment from the token
+    deployment = deployment_from_token(token)
+
+    # Check whether the job exists in the results
+    if id in RESULTS[deployment.id]:
+        return True
+    
+    # Check whether the job exists in the queue
+    if id in QUEUE[deployment.id]:
+        return False
+    
+    # If the job does not exist at all, raise
+    raise KeyError(id)
+
+@router.post("/api/job/reap", type_token=AUTHORITY.TokenType, type_id=Hexadecimal)
+def reap_job(token, id):
+    # Poll the job
+    if not poll_job(token, id):
+        raise RuntimeError("Job is not finished")
+    
+    # Fetch the deployment from the token
+    deployment = deployment_from_token(token)
+    
+    # Fetch the output for the job
+    output = RESULTS[deployment.id].pop(id)
+
+    # Return the output
+    return output
+
+@router.post("/api/deployment/new", type_password=PasswordType)
 def new(password):
     # Create new deployment identifier
     identifier = binascii.b2a_hex(os.urandom(4)).decode()
@@ -71,14 +115,19 @@ def new(password):
     # Return the new ID
     return identifier
 
+@router.post("/api/deployment/list", type_password=PasswordType)
+def list(password):
+    # Create a dictionary with ID->Name of deployments
+    return {identifier: deployment.name for identifier, deployment in DATABASE.items()}
 
-@router.post("/api/pubkey", type_password=PasswordType, type_deployment=DeploymentType)
+
+@router.post("/api/deployment/pubkey", type_password=PasswordType, type_deployment=DeploymentType)
 def pubkey(password, deployment):
     # Read the SSH key
     return deployment.pubkey
 
 
-@router.post("/api/access", type_password=PasswordType, type_deployment=DeploymentType)
+@router.post("/api/deployment/access_token", type_password=PasswordType, type_deployment=DeploymentType)
 def access(password, deployment):
     # Create temporary access token
     token, _ = AUTHORITY.issue("Temporary access token for %s" % deployment.id, dict(id=deployment.id), [
@@ -103,7 +152,7 @@ def access(password, deployment):
     return token
 
 
-@router.post("/api/token", type_password=PasswordType, type_deployment=DeploymentType)
+@router.post("/api/deployment/permanent_token", type_password=PasswordType, type_deployment=DeploymentType)
 def token(password, deployment):
     # Issue token with general permissions
     general, _ = AUTHORITY.issue(str(), dict(id=deployment.id), [
@@ -125,21 +174,21 @@ def token(password, deployment):
     # Return the created tokens
     return dict(general=general, webhook=webhook)
 
-
-@router.post("/api/edit", type_password=PasswordType, type_deployment=DeploymentType, type_name=Optional[Text], type_directory=Optional[Text], type_repository=Optional[Text])
-def edit(password, deployment, name=None, directory=None, repository=None):
-    return deployment.edit(name=name, directory=directory, repository=repository)
-
-@router.post("/api/delete", type_password=PasswordType, type_deployment=DeploymentType)
-def delete(password, deployment):
-    return deployment.delete()
-
-@router.post("/api/info", type_token=AUTHORITY.TokenType["info"])
+@router.post("/api/deployment/information", type_token=AUTHORITY.TokenType["info"])
 def info(token):
     # Parse token object and get ID
     return deployment_from_token(token).information
 
-@router.post("/api/status", type_token=AUTHORITY.TokenType["status"])
+@router.post("/api/deployment/edit", type_password=PasswordType, type_deployment=DeploymentType, type_name=Optional[Text], type_directory=Optional[Text], type_repository=Optional[Text])
+def edit(password, deployment, name=None, directory=None, repository=None):
+    return deployment.edit(name=name, directory=directory, repository=repository)
+
+@router.post("/api/deployment/delete", type_password=PasswordType, type_deployment=DeploymentType)
+def delete(password, deployment):
+    return deployment.delete()
+
+
+@router.post("/api/deployment/running", type_token=AUTHORITY.TokenType["status"])
 def status(token, timeout=3):
     return deployment_from_token(token).status
 
